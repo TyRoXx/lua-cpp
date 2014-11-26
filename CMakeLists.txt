@@ -52,5 +52,4 @@ find_package(Lua51 REQUIRED)
 include_directories(SYSTEM ${LUA_INCLUDE_DIR})
 
 include_directories(".")
-add_subdirectory("luacpp")
 add_subdirectory("test")

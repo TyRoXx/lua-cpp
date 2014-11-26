@@ -1,5 +1,5 @@
 #include <boost/test/unit_test.hpp>
-#include "luacpp/lua_environment.hpp"
+#include "luacpp/register_any_function.hpp"
 #include <lauxlib.h>
 #include <boost/optional/optional_io.hpp>
 #include <silicium/source/memory_source.hpp>
