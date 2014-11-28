@@ -26,16 +26,10 @@ namespace
 					{
 						return lua::emplace_object<::server>(stack, [&stack](lua_State &)
 						{
-							lua::stack_value meta = stack.create_table();
+							lua::stack_value meta = lua::create_default_meta_table<::server>(stack);
 							stack.set_element(meta, "wait", lua::register_any_function(stack, [](lua::reference this_)
 							{
 								std::cerr << "waiting\n";
-							}));
-							stack.set_element(meta, "__index", meta);
-							stack.set_element(meta, "__gc", lua::register_any_function(stack, [](void *this_)
-							{
-								assert(this_);
-								static_cast<::server *>(this_)->~server();
 							}));
 							return meta;
 						});

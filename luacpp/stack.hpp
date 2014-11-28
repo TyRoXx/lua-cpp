@@ -273,6 +273,21 @@ namespace lua
 		return obj;
 	}
 
+	template <class T>
+	lua::stack_value create_default_meta_table(lua::stack &s)
+	{
+		lua::stack_value meta = s.create_table();
+		s.set_element(meta, "__index", meta);
+		s.set_element(meta, "__gc", s.register_function([](lua_State *L) -> int
+		{
+			T *obj = static_cast<T *>(lua_touserdata(L, -1));
+			assert(obj);
+			obj->~T();
+			return 0;
+		}));
+		return meta;
+	}
+
 	inline Si::empty_source<pushable *> no_arguments()
 	{
 		return {};
