@@ -1,4 +1,5 @@
 #include "luacpp/register_any_function.hpp"
+#include "luacpp/meta_table.hpp"
 #include <silicium/asio/accepting_source.hpp>
 #include <silicium/source/generator_source.hpp>
 #include <boost/program_options.hpp>
@@ -9,6 +10,16 @@ namespace
 	struct server
 	{
 		std::vector<int> v{1,2,3};
+
+		void wait()
+		{
+			std::cerr << "waiting\n";
+		}
+
+		lua_Integer connection_count() const
+		{
+			return 0;
+		}
 	};
 
 	lua::stack_value require_package(lua::stack &stack, Si::noexcept_string const &name, Si::noexcept_string const &version)
@@ -22,15 +33,13 @@ namespace
 				"create_server",
 				[&stack](lua_State &)
 				{
-					return lua::register_any_function(stack, [&stack](lua_Integer port, lua::reference on_request)
+					return register_any_function(stack, [&stack](lua_Integer port, lua::reference on_request)
 					{
 						return lua::emplace_object<::server>(stack, [&stack](lua_State &)
 						{
 							lua::stack_value meta = lua::create_default_meta_table<::server>(stack);
-							stack.set_element(meta, "wait", lua::register_any_function(stack, [](lua::reference this_)
-							{
-								std::cerr << "waiting\n";
-							}));
+							add_method(stack, meta, "wait", &server::wait);
+							add_method(stack, meta, "connection_count", &server::connection_count);
 							return meta;
 						});
 					});
