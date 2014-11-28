@@ -8,6 +8,18 @@
 
 namespace lua
 {
+	enum class error
+	{
+		success = 0,
+		run = LUA_ERRRUN,
+		syntax = LUA_ERRSYNTAX,
+		mem = LUA_ERRMEM,
+		err = LUA_ERRERR,
+
+		///extra error code returned by luaL_loadfile
+		file = LUA_ERRFILE
+	};
+
 	struct lua_error_category : boost::system::error_category
 	{
 		virtual const char *name() const BOOST_SYSTEM_NOEXCEPT SILICIUM_OVERRIDE;

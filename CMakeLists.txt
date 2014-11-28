@@ -53,3 +53,4 @@ include_directories(SYSTEM ${LUA_INCLUDE_DIR})
 
 include_directories(".")
 add_subdirectory("test")
+add_subdirectory("examples")

@@ -6,6 +6,7 @@
 #include <silicium/config.hpp>
 #include <silicium/memory_range.hpp>
 #include <boost/system/error_code.hpp>
+#include <boost/filesystem/path.hpp>
 
 namespace lua
 {
@@ -40,6 +41,16 @@ namespace lua
 	inline boost::system::error_code load_buffer(lua_State &L, Si::memory_range code, char const *name)
 	{
 		int rc = luaL_loadbuffer(&L, code.begin(), code.size(), name);
+		if (rc != 0)
+		{
+			return boost::system::error_code(rc, get_lua_error_category());
+		}
+		return boost::system::error_code();
+	}
+
+	inline boost::system::error_code load_file(lua_State &L, boost::filesystem::path const &file)
+	{
+		int rc = luaL_loadfile(&L, file.c_str());
 		if (rc != 0)
 		{
 			return boost::system::error_code(rc, get_lua_error_category());

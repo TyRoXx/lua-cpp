@@ -35,6 +35,14 @@ namespace lua
 			return stack_value(*m_state, top);
 		}
 
+		std::pair<error, stack_value> load_file(boost::filesystem::path const &file)
+		{
+			int rc = luaL_loadfile(m_state.get(), file.c_str());
+			error ec = static_cast<error>(rc);
+			int top = checked_top();
+			return std::make_pair(ec, stack_value(*m_state, top));
+		}
+
 		template <class Pushable, class ArgumentSource>
 		stack_array call(Pushable const &function, ArgumentSource &&arguments, boost::optional<int> expected_result_count)
 		{
