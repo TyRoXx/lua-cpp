@@ -49,6 +49,13 @@ namespace lua
 		lua_pushboolean(&L, value);
 	}
 
+	template <class PushFunction, class = decltype(std::declval<PushFunction>()(std::declval<lua_State &>()))>
+	void push(lua_State &L, PushFunction &&push_one)
+	{
+		using lua::push;
+		push(L, std::forward<PushFunction>(push_one)(L));
+	}
+
 	namespace detail
 	{
 		struct pusher

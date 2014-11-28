@@ -45,6 +45,17 @@ namespace lua
 			other.m_state = nullptr;
 		}
 
+		basic_stack_value &operator = (basic_stack_value &&other) BOOST_NOEXCEPT
+		{
+			using boost::swap;
+			swap(m_state, other.m_state);
+			swap(m_address, other.m_address);
+#ifndef NDEBUG
+			swap(m_initial_top, other.m_initial_top);
+#endif
+			return *this;
+		}
+
 		~basic_stack_value() BOOST_NOEXCEPT
 		{
 			if (!m_state)
@@ -91,6 +102,11 @@ namespace lua
 			return static_cast<lua::type>(lua_type(m_state, m_address));
 		}
 
+		void assert_top() const
+		{
+			assert(lua_gettop(m_state) == m_address);
+		}
+
 	private:
 
 		lua_State *m_state;
@@ -101,7 +117,6 @@ namespace lua
 
 		SILICIUM_DELETED_FUNCTION(basic_stack_value(basic_stack_value const &))
 		SILICIUM_DELETED_FUNCTION(basic_stack_value &operator = (basic_stack_value const &))
-		SILICIUM_DELETED_FUNCTION(basic_stack_value &operator = (basic_stack_value &&))
 	};
 
 	typedef basic_stack_value<std::integral_constant<int, 1>> stack_value;
@@ -117,6 +132,13 @@ namespace lua
 	inline void push(lua_State &L, stack_value const &value)
 	{
 		lua_pushvalue(&L, value.from_bottom());
+	}
+
+	inline void push(lua_State &L, stack_value &&value)
+	{
+		(void)L;
+		assert(value.from_bottom() == lua_gettop(&L));
+		value.release();
 	}
 }
 

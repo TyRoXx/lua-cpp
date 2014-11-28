@@ -1,8 +1,34 @@
 #include "luacpp/register_any_function.hpp"
 #include <silicium/asio/accepting_source.hpp>
-#include <silicium/source/single_source.hpp>
+#include <silicium/source/generator_source.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
+
+namespace
+{
+	lua::stack_value require_package(lua::stack &stack, Si::noexcept_string const &name, Si::noexcept_string const &version)
+	{
+		if (name == "web")
+		{
+			boost::ignore_unused_variable_warning(version);
+			lua::stack_value module = stack.create_table();
+			stack.set_element(
+				lua::any_local(module.from_bottom()),
+				"create_server",
+				[&stack](lua_State &)
+				{
+					return lua::register_any_function(stack, [](lua_Integer port, lua::reference on_request)
+					{
+
+					});
+				}
+			);
+			module.assert_top();
+			return module;
+		}
+		return stack.push_nil();
+	}
+}
 
 int main(int argc, char **argv)
 {
@@ -47,8 +73,22 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	lua::stack_value second_level = stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
-	stack.call(second_level, lua::no_arguments(), 0);
+	try
+	{
+		lua::stack_value second_level = stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
+		stack.call(second_level, Si::make_oneshot_generator_source([&stack]()
+		{
+			return lua::register_any_function(stack, [&stack](Si::noexcept_string const &name, Si::noexcept_string const &version)
+			{
+				return require_package(stack, name, version);
+			});
+		}), 0);
+	}
+	catch (std::exception const &ex)
+	{
+		std::cerr << ex.what() << '\n';
+		return 1;
+	}
 
 	io.run();
 }

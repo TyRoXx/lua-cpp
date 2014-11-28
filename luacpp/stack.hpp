@@ -8,6 +8,26 @@
 
 namespace lua
 {
+	struct top_checker
+	{
+		explicit top_checker(lua_State &lua)
+			: m_lua(lua)
+			, m_top_on_entry(lua_gettop(&lua))
+		{
+		}
+
+		~top_checker()
+		{
+			int const top_on_exit = lua_gettop(&m_lua);
+			assert(top_on_exit == m_top_on_entry);
+		}
+
+	private:
+
+		lua_State &m_lua;
+		int m_top_on_entry;
+	};
+
 	struct stack
 	{
 		stack() BOOST_NOEXCEPT
@@ -57,7 +77,7 @@ namespace lua
 				{
 					break;
 				}
-				push(*m_state, *argument);
+				push(*m_state, std::move(*argument));
 				++argument_count;
 			}
 			assert(checked_top() == (top_before + 1 + argument_count));
@@ -185,9 +205,16 @@ namespace lua
 			return stack_value(*m_state, checked_top());
 		}
 
+		stack_value push_nil()
+		{
+			lua_pushnil(m_state.get());
+			return stack_value(*m_state, checked_top());
+		}
+
 		template <class Key, class Element>
 		void set_element(any_local const &table, Key &&key, Element &&element)
 		{
+			top_checker checker(*m_state);
 			push(*m_state, std::forward<Key>(key));
 			push(*m_state, std::forward<Element>(element));
 			lua_settable(m_state.get(), table.from_bottom());

@@ -37,8 +37,13 @@ namespace lua
 			int operator()(lua_State &L, F const &f, Arguments &&...args) const
 			{
 				NonVoid result = f(std::forward<Arguments>(args)...);
-				lua_pop(&L, sizeof...(Arguments));
 				push(L, std::move(result));
+				if (sizeof...(Arguments))
+				{
+					int const top = lua_gettop(&L);
+					lua_replace(&L, (top - sizeof...(Arguments)));
+					lua_pop(&L, (sizeof...(Arguments) - 1));
+				}
 				return 1;
 			}
 		};
