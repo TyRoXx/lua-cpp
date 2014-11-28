@@ -212,6 +212,8 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 				bool const &bc,
 				lua_Number n,
 				lua_Number const &nc,
+				lua_Integer i,
+				lua_Integer const &ic,
 				Si::noexcept_string str,
 				Si::noexcept_string const &strc,
 				char const *c_str,
@@ -222,12 +224,14 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			//The three arguments should still be on the stack,
 			//for example for keeping c_str safe from the GC.
 			int stack_size = lua_gettop(s.state());
-			BOOST_REQUIRE_EQUAL(9, stack_size);
+			BOOST_REQUIRE_EQUAL(11, stack_size);
 
 			BOOST_CHECK_EQUAL(true, b);
 			BOOST_CHECK_EQUAL(false, bc);
 			BOOST_CHECK_EQUAL(3, n);
 			BOOST_CHECK_EQUAL(6, nc);
+			BOOST_CHECK_EQUAL(32, i);
+			BOOST_CHECK_EQUAL(64, ic);
 			BOOST_CHECK_EQUAL("abc", str);
 			BOOST_CHECK_EQUAL("ABC", strc);
 			BOOST_REQUIRE(c_str);
@@ -242,6 +246,8 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			false,
 			3.0,
 			6.0,
+			32.0,
+			64.0,
 			Si::noexcept_string("abc"),
 			Si::noexcept_string("ABC"),
 			Si::noexcept_string("def"),

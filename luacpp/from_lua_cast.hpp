@@ -19,6 +19,15 @@ namespace lua
 	};
 
 	template <>
+	struct from_lua<lua_Integer>
+	{
+		lua_Integer operator()(lua_State &L, int address) const
+		{
+			return lua_tointeger(&L, address);
+		}
+	};
+
+	template <>
 	struct from_lua<bool>
 	{
 		bool operator()(lua_State &L, int address) const
