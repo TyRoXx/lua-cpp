@@ -254,6 +254,25 @@ namespace lua
 		}
 	};
 
+	template <class T, class Pushable, class ...Args>
+	stack_value emplace_object(stack &s, Pushable &&meta_table, Args &&...args)
+	{
+		stack_value obj = s.create_user_data(sizeof(T));
+		T * const raw_obj = static_cast<T *>(s.to_user_data(obj));
+		assert(raw_obj);
+		new (raw_obj) T{std::forward<Args>(args)...};
+		try
+		{
+			s.set_meta_table(obj, std::forward<Pushable>(meta_table));
+		}
+		catch (...)
+		{
+			raw_obj->~T();
+			throw;
+		}
+		return obj;
+	}
+
 	inline Si::empty_source<pushable *> no_arguments()
 	{
 		return {};

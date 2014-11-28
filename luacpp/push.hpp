@@ -49,6 +49,15 @@ namespace lua
 		lua_pushboolean(&L, value);
 	}
 
+	inline void push(lua_State &L, void *value) BOOST_NOEXCEPT
+	{
+		lua_pushlightuserdata(&L, value);
+	}
+
+	///Declared, but never defined because you should not call push like this.
+	///Without this declaration there might be an implicit conversion to bool.
+	void push(lua_State &L, void const *);
+
 	template <class PushFunction, class = decltype(std::declval<PushFunction>()(std::declval<lua_State &>()))>
 	void push(lua_State &L, PushFunction &&push_one)
 	{

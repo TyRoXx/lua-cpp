@@ -6,6 +6,11 @@
 
 namespace
 {
+	struct server
+	{
+		std::vector<int> v{1,2,3};
+	};
+
 	lua::stack_value require_package(lua::stack &stack, Si::noexcept_string const &name, Si::noexcept_string const &version)
 	{
 		if (name == "web")
@@ -19,7 +24,7 @@ namespace
 				{
 					return lua::register_any_function(stack, [&stack](lua_Integer port, lua::reference on_request)
 					{
-						lua::stack_value server = stack.create_table();
+						return lua::emplace_object<::server>(stack, [&stack](lua_State &)
 						{
 							lua::stack_value meta = stack.create_table();
 							stack.set_element(meta, "wait", lua::register_any_function(stack, [](lua::reference this_)
@@ -27,9 +32,13 @@ namespace
 								std::cerr << "waiting\n";
 							}));
 							stack.set_element(meta, "__index", meta);
-							stack.set_meta_table(server, meta);
-						}
-						return server;
+							stack.set_element(meta, "__gc", lua::register_any_function(stack, [](void *this_)
+							{
+								assert(this_);
+								static_cast<::server *>(this_)->~server();
+							}));
+							return meta;
+						});
 					});
 				}
 			);

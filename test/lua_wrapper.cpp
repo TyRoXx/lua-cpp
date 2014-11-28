@@ -218,13 +218,15 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 				Si::noexcept_string const &strc,
 				char const *c_str,
 				lua::reference ref,
-				lua::reference const &refc
+				lua::reference const &refc,
+				void *u,
+				void * const &uc
 			) -> Si::noexcept_string
 		{
 			//The three arguments should still be on the stack,
 			//for example for keeping c_str safe from the GC.
 			int stack_size = lua_gettop(s.state());
-			BOOST_REQUIRE_EQUAL(11, stack_size);
+			BOOST_REQUIRE_EQUAL(13, stack_size);
 
 			BOOST_CHECK_EQUAL(true, b);
 			BOOST_CHECK_EQUAL(false, bc);
@@ -238,9 +240,11 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			BOOST_CHECK_EQUAL(Si::noexcept_string("def"), c_str);
 			BOOST_CHECK_EQUAL(-1.0, lua::from_lua_cast<lua_Number>(*s.state(), ref));
 			BOOST_CHECK_EQUAL(-2.0, lua::from_lua_cast<lua_Number>(*s.state(), refc));
+			BOOST_CHECK_EQUAL(&s, u);
+			BOOST_CHECK_EQUAL(&s, uc);
 			return "it works";
 		});
-		std::vector<Si::fast_variant<bool, lua_Number, Si::noexcept_string>> const arguments
+		std::vector<Si::fast_variant<bool, lua_Number, Si::noexcept_string, void *>> const arguments
 		{
 			true,
 			false,
@@ -252,7 +256,9 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			Si::noexcept_string("ABC"),
 			Si::noexcept_string("def"),
 			-1.0,
-			-2.0
+			-2.0,
+			static_cast<void *>(&s),
+			static_cast<void *>(&s)
 		};
 		lua::stack_value result = s.call(registered, Si::make_container_source(arguments), std::integral_constant<int, 1>());
 		boost::optional<Si::noexcept_string> str_result = s.get_string(lua::any_local(result.from_bottom()));

@@ -37,6 +37,15 @@ namespace lua
 	};
 
 	template <>
+	struct from_lua<void *>
+	{
+		void *operator()(lua_State &L, int address) const
+		{
+			return lua_touserdata(&L, address);
+		}
+	};
+
+	template <>
 	struct from_lua<Si::noexcept_string>
 	{
 		Si::noexcept_string operator()(lua_State &L, int address) const
