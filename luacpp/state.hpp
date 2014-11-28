@@ -57,7 +57,6 @@ namespace lua
 		}
 		return boost::system::error_code();
 	}
-
 }
 
 #endif

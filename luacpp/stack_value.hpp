@@ -16,7 +16,7 @@ namespace lua
 	};
 
 	template <class Size>
-	struct basic_stack_value : private Size
+	struct basic_stack_value : private Size, public any_local
 	{
 		basic_stack_value() BOOST_NOEXCEPT
 			: m_state(nullptr)
@@ -25,19 +25,19 @@ namespace lua
 
 		basic_stack_value(lua_State &state, int address, Size size = Size()) BOOST_NOEXCEPT
 			: Size(size)
+			, any_local(address)
 			, m_state(&state)
-			, m_address(address)
 #ifndef NDEBUG
 			, m_initial_top(lua_gettop(&state))
 #endif
 		{
-			assert(m_address >= 1);
+			assert(address >= 1);
 			assert(m_initial_top >= Size::value);
 		}
 
 		basic_stack_value(basic_stack_value &&other) BOOST_NOEXCEPT
-			: m_state(other.m_state)
-			, m_address(other.m_address)
+			: any_local(std::move(other))
+			, m_state(other.m_state)
 #ifndef NDEBUG
 			, m_initial_top(other.m_initial_top)
 #endif
@@ -48,8 +48,8 @@ namespace lua
 		basic_stack_value &operator = (basic_stack_value &&other) BOOST_NOEXCEPT
 		{
 			using boost::swap;
+			swap(static_cast<any_local &>(*this), static_cast<any_local &>(other));
 			swap(m_state, other.m_state);
-			swap(m_address, other.m_address);
 #ifndef NDEBUG
 			swap(m_initial_top, other.m_initial_top);
 #endif
@@ -86,31 +86,19 @@ namespace lua
 			return m_state;
 		}
 
-		void push() const BOOST_NOEXCEPT
-		{
-			assert(m_state);
-			lua_pushvalue(m_state, m_address);
-		}
-
-		int from_bottom() const BOOST_NOEXCEPT
-		{
-			return m_address;
-		}
-
 		lua::type get_type() const BOOST_NOEXCEPT
 		{
-			return static_cast<lua::type>(lua_type(m_state, m_address));
+			return static_cast<lua::type>(lua_type(m_state, from_bottom()));
 		}
 
 		void assert_top() const
 		{
-			assert(lua_gettop(m_state) == m_address);
+			assert(lua_gettop(m_state) == from_bottom());
 		}
 
 	private:
 
 		lua_State *m_state;
-		int m_address;
 #ifndef NDEBUG
 		int m_initial_top;
 #endif
@@ -136,9 +124,14 @@ namespace lua
 
 	inline void push(lua_State &L, stack_value &&value)
 	{
-		(void)L;
-		assert(value.from_bottom() == lua_gettop(&L));
-		value.release();
+		if (value.from_bottom() == lua_gettop(&L))
+		{
+			value.release();
+		}
+		else
+		{
+			push(L, static_cast<stack_value const &>(value));
+		}
 	}
 }
 

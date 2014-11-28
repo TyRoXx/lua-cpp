@@ -147,6 +147,11 @@ namespace lua
 			return lua_tonumber(m_state.get(), local.from_bottom());
 		}
 
+		lua_Integer to_integer(any_local const &local)
+		{
+			return lua_tointeger(m_state.get(), local.from_bottom());
+		}
+
 		Si::noexcept_string to_string(any_local const &local)
 		{
 			return lua_tostring(m_state.get(), local.from_bottom());
@@ -170,6 +175,16 @@ namespace lua
 				return boost::none;
 			}
 			return to_number(local);
+		}
+
+		boost::optional<lua_Integer> get_integer(any_local const &local)
+		{
+			type const t = get_type(local);
+			if (t != type::number)
+			{
+				return boost::none;
+			}
+			return to_integer(local);
 		}
 
 		boost::optional<Si::noexcept_string> get_string(any_local const &local)

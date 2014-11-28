@@ -96,6 +96,12 @@ namespace lua
 			return m_from_bottom;
 		}
 
+		void swap(any_local &other) BOOST_NOEXCEPT
+		{
+			using boost::swap;
+			swap(m_from_bottom, other.m_from_bottom);
+		}
+
 		virtual void push(lua_State &L) const SILICIUM_OVERRIDE
 		{
 			assert(m_from_bottom >= 1);
@@ -149,6 +155,13 @@ namespace lua
 		{
 		}
 	};
+
+	template <class Pushable>
+	void set_global(lua_State &L, char const *name, Pushable &&value)
+	{
+		push(L, std::forward<Pushable>(value));
+		lua_setglobal(&L, name);
+	}
 }
 
 #endif

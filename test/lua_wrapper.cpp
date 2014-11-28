@@ -329,3 +329,24 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_retur
 		test_return_type(s, bound, Si::noexcept_string("text"));
 	});
 }
+
+BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
+{
+	test_with_environment([](lua::stack &s, resource bound)
+	{
+		auto obj = s.create_user_data(1);
+		{
+			auto meta = s.create_table();
+			s.set_element(meta, "method", s.register_function([](lua_State *L) -> int
+			{
+				lua_pushinteger(L, 234);
+				return 1;
+			}));
+			s.set_element(meta, "__index", meta);
+			s.set_meta_table(obj, meta);
+		}
+		lua::set_global(*s.state(), "obj", obj);
+		boost::optional<lua_Integer> result = s.get_integer(s.call(s.load_buffer(Si::make_c_str_range("return obj:method()"), "test"), lua::no_arguments(), std::integral_constant<int, 1>()));
+		BOOST_CHECK_EQUAL(boost::optional<lua_Integer>(234), result);
+	});
+}

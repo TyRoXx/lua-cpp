@@ -17,9 +17,19 @@ namespace
 				"create_server",
 				[&stack](lua_State &)
 				{
-					return lua::register_any_function(stack, [](lua_Integer port, lua::reference on_request)
+					return lua::register_any_function(stack, [&stack](lua_Integer port, lua::reference on_request)
 					{
-
+						lua::stack_value server = stack.create_table();
+						{
+							lua::stack_value meta = stack.create_table();
+							stack.set_element(meta, "wait", lua::register_any_function(stack, [](lua::reference this_)
+							{
+								std::cerr << "waiting\n";
+							}));
+							stack.set_element(meta, "__index", meta);
+							stack.set_meta_table(server, meta);
+						}
+						return server;
 					});
 				}
 			);
