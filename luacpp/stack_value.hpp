@@ -96,6 +96,15 @@ namespace lua
 			assert(lua_gettop(m_state) == from_bottom());
 		}
 
+		template <class Pushable>
+		basic_stack_value<std::integral_constant<int, 1>> operator[](Pushable &&index)
+		{
+			using lua::push;
+			push(*m_state, std::forward<Pushable>(index));
+			lua_gettable(m_state, from_bottom());
+			return basic_stack_value<std::integral_constant<int, 1>>(*m_state, lua_gettop(m_state));
+		}
+
 	private:
 
 		lua_State *m_state;

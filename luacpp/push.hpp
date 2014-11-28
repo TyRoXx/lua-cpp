@@ -34,6 +34,11 @@ namespace lua
 		lua_pushnumber(&L, value);
 	}
 
+	inline void push(lua_State &L, lua_Integer value) BOOST_NOEXCEPT
+	{
+		lua_pushinteger(&L, value);
+	}
+
 	inline void push(lua_State &L, Si::noexcept_string const &value) BOOST_NOEXCEPT
 	{
 		lua_pushlstring(&L, value.data(), value.size());

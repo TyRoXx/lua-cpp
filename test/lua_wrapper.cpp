@@ -356,3 +356,16 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 		BOOST_CHECK_EQUAL(boost::optional<lua_Integer>(234), result);
 	});
 }
+
+BOOST_AUTO_TEST_CASE(lua_wrapper_index_operator)
+{
+	test_with_environment([](lua::stack &s, resource bound)
+	{
+		lua::stack_value table = s.create_table();
+		s.set_element(table, static_cast<lua_Integer>(1), "abc");
+		lua::stack_value element_1 = table[static_cast<lua_Integer>(1)];
+		lua::stack_value element_2 = table[static_cast<lua_Integer>(2)];
+		BOOST_CHECK_EQUAL(lua::type::string, s.get_type(element_1));
+		BOOST_CHECK_EQUAL(lua::type::nil, s.get_type(element_2));
+	});
+}
