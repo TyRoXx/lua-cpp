@@ -2,6 +2,8 @@
 #include "luacpp/meta_table.hpp"
 #include <silicium/asio/tcp_acceptor.hpp>
 #include <silicium/observable/end.hpp>
+#include <silicium/observable/transform.hpp>
+#include <silicium/observable/ptr.hpp>
 #include <silicium/source/generator_source.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
@@ -10,9 +12,21 @@ namespace
 {
 	struct server : private Si::observer<Si::ended>
 	{
-		explicit server(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
+		explicit server(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint, lua::reference on_request)
 			: m_acceptor(io, endpoint)
-			, m_incoming_clients(Si::asio::tcp_acceptor(m_acceptor))
+			, m_incoming_clients(
+				Si::erase_unique(
+					Si::transform(
+						Si::asio::tcp_acceptor(m_acceptor),
+						[this](Si::asio::tcp_acceptor_result client) -> Si::nothing
+						{
+							handle_client(std::move(client));
+							return {};
+						}
+					)
+				)
+			)
+			, m_on_request(std::move(on_request))
 		{
 		}
 
@@ -36,7 +50,8 @@ namespace
 	private:
 
 		boost::asio::ip::tcp::acceptor m_acceptor;
-		Si::end_observable<Si::asio::tcp_acceptor> m_incoming_clients;
+		Si::end_observable<Si::unique_observable<Si::nothing>> m_incoming_clients;
+		lua::reference m_on_request;
 		bool m_waiting;
 		boost::optional<lua::coroutine> m_suspended;
 
@@ -53,6 +68,12 @@ namespace
 		virtual void ended() SILICIUM_OVERRIDE
 		{
 			SILICIUM_UNREACHABLE();
+		}
+
+		void handle_client(Si::asio::tcp_acceptor_result client)
+		{
+			lua::stack s(*m_on_request.state());
+			s.call(m_on_request, lua::no_arguments(), 0);
 		}
 	};
 
@@ -73,13 +94,14 @@ namespace
 				{
 					return register_any_function(stack, [&stack, &io](lua_Integer port, lua::reference on_request)
 					{
+						boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
 						return lua::emplace_object<::server>(stack, [&stack](lua_State &)
 						{
 							lua::stack_value meta = lua::create_default_meta_table<::server>(stack);
 							add_method(stack, meta, "wait", &server::wait);
 							add_method(stack, meta, "connection_count", &server::connection_count);
 							return meta;
-						}, io, boost::asio::ip::tcp::endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port)));
+						}, io, endpoint, std::move(on_request));
 					});
 				}
 			);
@@ -149,12 +171,11 @@ int main(int argc, char **argv)
 			});
 		}));
 		assert(Si::try_get_ptr<lua::stack::yield>(resumed));
+		io.run();
 	}
 	catch (std::exception const &ex)
 	{
 		std::cerr << ex.what() << '\n';
 		return 1;
 	}
-
-	io.run();
 }

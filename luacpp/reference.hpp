@@ -53,6 +53,11 @@ namespace lua
 			lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_key);
 		}
 
+		lua_State *state() const BOOST_NOEXCEPT
+		{
+			return m_state;
+		}
+
 		virtual void push(lua_State &L) const SILICIUM_OVERRIDE
 		{
 			assert(&L == m_state);
