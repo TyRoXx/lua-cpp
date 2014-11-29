@@ -91,20 +91,18 @@ namespace lua
 
 		typedef Si::fast_variant<stack_array, yield> resume_result;
 
-		template <class Pushable, class ArgumentSource>
-		resume_result resume(Pushable const &function, ArgumentSource &&arguments)
+		template <class ArgumentSource>
+		resume_result resume(stack_value function, ArgumentSource &&arguments)
 		{
-			int const top_before = checked_top();
-			int const argument_count = push_arguments(function, arguments);
+			int const argument_count = push_arguments(std::move(function), arguments);
 			int const rc = lua_resume(m_state, argument_count);
 			if (rc == LUA_YIELD)
 			{
 				return yield();
 			}
 			handle_pcall_result(rc);
-			int const top_after_call = checked_top();
-			assert(top_after_call >= top_before);
-			return stack_array(*m_state, top_before + 1, variable<int>{top_after_call - top_before});
+			int const result_count = checked_top();
+			return stack_array(*m_state, 1, variable<int>{result_count});
 		}
 
 		stack_value register_function(int (*function)(lua_State *L))
@@ -258,11 +256,10 @@ namespace lua
 		}
 
 		template <class Pushable, class ArgumentSource>
-		int push_arguments(Pushable const &function, ArgumentSource &&arguments)
+		int push_arguments(Pushable &&function, ArgumentSource &&arguments)
 		{
+			push(*m_state, std::forward<Pushable>(function));
 			int const top_before = checked_top();
-			push(*m_state, function);
-			assert(checked_top() == (top_before + 1));
 			int argument_count = 0;
 			for (;;)
 			{
@@ -274,7 +271,7 @@ namespace lua
 				push(*m_state, std::move(*argument));
 				++argument_count;
 			}
-			assert(checked_top() == (top_before + 1 + argument_count));
+			assert(checked_top() == (top_before + argument_count));
 			return argument_count;
 		}
 

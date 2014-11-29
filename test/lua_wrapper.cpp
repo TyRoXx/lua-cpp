@@ -1,5 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include "luacpp/register_any_function.hpp"
+#include "luacpp/coroutine.hpp"
 #include <lauxlib.h>
 #include <boost/optional/optional_io.hpp>
 #include <silicium/source/memory_source.hpp>
@@ -368,5 +369,39 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_index_operator)
 		lua::stack_value element_2 = table[static_cast<lua_Integer>(2)];
 		BOOST_CHECK_EQUAL(lua::type::string, s.get_type(element_1));
 		BOOST_CHECK_EQUAL(lua::type::nil, s.get_type(element_2));
+	});
+}
+
+BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yield)
+{
+	test_with_environment([](lua::stack &s, resource bound)
+	{
+		lua::coroutine coro = lua::create_coroutine(*s.state());
+		lua::stack coro_stack(coro.thread());
+		lua::stack_value entry_point = coro_stack.register_function([](lua_State *L) -> int
+		{
+			return lua_yield(L, 0);
+		});
+		lua::stack::resume_result result = coro_stack.resume(std::move(entry_point), lua::no_arguments());
+		BOOST_CHECK(nullptr != Si::try_get_ptr<lua::stack::yield>(result));
+	});
+}
+
+BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_finish)
+{
+	test_with_environment([](lua::stack &s, resource bound)
+	{
+		lua::coroutine coro = lua::create_coroutine(*s.state());
+		lua::stack coro_stack(coro.thread());
+		lua::stack_value entry_point = coro_stack.register_function([](lua_State *L) -> int
+		{
+			lua_pushinteger(L, 23);
+			return 1;
+		});
+		lua::stack::resume_result result = coro_stack.resume(std::move(entry_point), lua::no_arguments());
+		lua::stack_array * const return_values = Si::try_get_ptr<lua::stack_array>(result);
+		BOOST_REQUIRE(return_values);
+		BOOST_REQUIRE_EQUAL(1, return_values->size());
+		BOOST_CHECK_EQUAL(static_cast<lua_Integer>(23), coro_stack.get_integer(*return_values));
 	});
 }

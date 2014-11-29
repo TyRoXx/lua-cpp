@@ -36,7 +36,8 @@ namespace lua
 		}
 
 		basic_stack_value(basic_stack_value &&other) BOOST_NOEXCEPT
-			: any_local(std::move(other))
+			: Size(std::move(other))
+			, any_local(std::move(other))
 			, m_state(other.m_state)
 #ifndef NDEBUG
 			, m_initial_top(other.m_initial_top)
@@ -48,6 +49,7 @@ namespace lua
 		basic_stack_value &operator = (basic_stack_value &&other) BOOST_NOEXCEPT
 		{
 			using boost::swap;
+			swap(static_cast<Size &>(*this), static_cast<Size &>(other));
 			swap(static_cast<any_local &>(*this), static_cast<any_local &>(other));
 			swap(m_state, other.m_state);
 #ifndef NDEBUG
