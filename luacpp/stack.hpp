@@ -5,6 +5,7 @@
 #include "luacpp/state.hpp"
 #include "luacpp/exception.hpp"
 #include <silicium/source/empty.hpp>
+#include <silicium/fast_variant.hpp>
 
 namespace lua
 {
@@ -34,14 +35,14 @@ namespace lua
 		{
 		}
 
-		explicit stack(state_ptr state) BOOST_NOEXCEPT
-			: m_state(std::move(state))
+		explicit stack(lua_State &state) BOOST_NOEXCEPT
+			: m_state(&state)
 		{
 		}
 
 		lua_State *state() const BOOST_NOEXCEPT
 		{
-			return m_state.get();
+			return m_state;
 		}
 
 		stack_value load_buffer(Si::memory_range code, char const *name)
@@ -51,13 +52,13 @@ namespace lua
 			{
 				boost::throw_exception(boost::system::system_error(error));
 			}
-			int top = lua_gettop(m_state.get());
+			int top = lua_gettop(m_state);
 			return stack_value(*m_state, top);
 		}
 
 		std::pair<error, stack_value> load_file(boost::filesystem::path const &file)
 		{
-			int rc = luaL_loadfile(m_state.get(), file.c_str());
+			int rc = luaL_loadfile(m_state, file.c_str());
 			error ec = static_cast<error>(rc);
 			int top = checked_top();
 			return std::make_pair(ec, stack_value(*m_state, top));
@@ -67,28 +68,9 @@ namespace lua
 		stack_array call(Pushable const &function, ArgumentSource &&arguments, boost::optional<int> expected_result_count)
 		{
 			int const top_before = checked_top();
-			push(*m_state, function);
-			assert(checked_top() == (top_before + 1));
-			int argument_count = 0;
-			for (;;)
-			{
-				auto argument = Si::get(arguments);
-				if (!argument)
-				{
-					break;
-				}
-				push(*m_state, std::move(*argument));
-				++argument_count;
-			}
-			assert(checked_top() == (top_before + 1 + argument_count));
+			int const argument_count = push_arguments(function, arguments);
 			int const nresults = expected_result_count ? *expected_result_count : LUA_MULTRET;
-			//TODO: stack trace in case of an error
-			if (lua_pcall(m_state.get(), argument_count, nresults, 0) != 0)
-			{
-				std::string message = lua_tostring(m_state.get(), -1);
-				lua_pop(m_state.get(), 1);
-				boost::throw_exception(lua_exception(std::move(message)));
-			}
+			handle_pcall_result(lua_pcall(m_state, argument_count, nresults, 0));
 			int const top_after_call = checked_top();
 			assert(top_after_call >= top_before);
 			return stack_array(*m_state, top_before + 1, variable<int>{top_after_call - top_before});
@@ -103,16 +85,38 @@ namespace lua
 			return stack_value(*m_state, where);
 		}
 
+		struct yield
+		{
+		};
+
+		typedef Si::fast_variant<stack_array, yield> resume_result;
+
+		template <class Pushable, class ArgumentSource>
+		resume_result resume(Pushable const &function, ArgumentSource &&arguments)
+		{
+			int const top_before = checked_top();
+			int const argument_count = push_arguments(function, arguments);
+			int const rc = lua_resume(m_state, argument_count);
+			if (rc == LUA_YIELD)
+			{
+				return yield();
+			}
+			handle_pcall_result(rc);
+			int const top_after_call = checked_top();
+			assert(top_after_call >= top_before);
+			return stack_array(*m_state, top_before + 1, variable<int>{top_after_call - top_before});
+		}
+
 		stack_value register_function(int (*function)(lua_State *L))
 		{
-			lua_pushcfunction(m_state.get(), function);
+			lua_pushcfunction(m_state, function);
 			return stack_value(*m_state, checked_top());
 		}
 
 		stack_value register_function_with_existing_upvalues(int (*function)(lua_State *L), int upvalue_count)
 		{
 			assert(checked_top() >= upvalue_count);
-			lua_pushcclosure(m_state.get(), function, upvalue_count);
+			lua_pushcclosure(m_state, function, upvalue_count);
 			return stack_value(*m_state, checked_top());
 		}
 
@@ -139,32 +143,32 @@ namespace lua
 
 		type get_type(any_local const &local)
 		{
-			return static_cast<type>(lua_type(m_state.get(), local.from_bottom()));
+			return static_cast<type>(lua_type(m_state, local.from_bottom()));
 		}
 
 		lua_Number to_number(any_local const &local)
 		{
-			return lua_tonumber(m_state.get(), local.from_bottom());
+			return lua_tonumber(m_state, local.from_bottom());
 		}
 
 		lua_Integer to_integer(any_local const &local)
 		{
-			return lua_tointeger(m_state.get(), local.from_bottom());
+			return lua_tointeger(m_state, local.from_bottom());
 		}
 
 		Si::noexcept_string to_string(any_local const &local)
 		{
-			return lua_tostring(m_state.get(), local.from_bottom());
+			return lua_tostring(m_state, local.from_bottom());
 		}
 
 		bool to_boolean(any_local const &local)
 		{
-			return lua_toboolean(m_state.get(), local.from_bottom());
+			return lua_toboolean(m_state, local.from_bottom());
 		}
 
 		void *to_user_data(any_local const &local)
 		{
-			return lua_touserdata(m_state.get(), local.from_bottom());
+			return lua_touserdata(m_state, local.from_bottom());
 		}
 
 		boost::optional<lua_Number> get_number(any_local const &local)
@@ -209,20 +213,20 @@ namespace lua
 
 		stack_value create_user_data(std::size_t size)
 		{
-			void *user_data = lua_newuserdata(m_state.get(), size);
+			void *user_data = lua_newuserdata(m_state, size);
 			assert(size == 0 || user_data);
 			return stack_value(*m_state, checked_top());
 		}
 
 		stack_value create_table(int array_size = 0, int non_array_size = 0)
 		{
-			lua_createtable(m_state.get(), array_size, non_array_size);
+			lua_createtable(m_state, array_size, non_array_size);
 			return stack_value(*m_state, checked_top());
 		}
 
 		stack_value push_nil()
 		{
-			lua_pushnil(m_state.get());
+			lua_pushnil(m_state);
 			return stack_value(*m_state, checked_top());
 		}
 
@@ -232,25 +236,58 @@ namespace lua
 			top_checker checker(*m_state);
 			push(*m_state, std::forward<Key>(key));
 			push(*m_state, std::forward<Element>(element));
-			lua_settable(m_state.get(), table.from_bottom());
+			lua_settable(m_state, table.from_bottom());
 		}
 
 		template <class Metatable>
 		void set_meta_table(any_local const &object, Metatable &&meta)
 		{
 			push(*m_state, std::forward<Metatable>(meta));
-			lua_setmetatable(m_state.get(), object.from_bottom());
+			lua_setmetatable(m_state, object.from_bottom());
 		}
 
 	private:
 
-		state_ptr m_state;
+		lua_State *m_state;
 
 		int checked_top() const BOOST_NOEXCEPT
 		{
-			int top = lua_gettop(m_state.get());
+			int top = lua_gettop(m_state);
 			assert(top >= 0);
 			return top;
+		}
+
+		template <class Pushable, class ArgumentSource>
+		int push_arguments(Pushable const &function, ArgumentSource &&arguments)
+		{
+			int const top_before = checked_top();
+			push(*m_state, function);
+			assert(checked_top() == (top_before + 1));
+			int argument_count = 0;
+			for (;;)
+			{
+				auto argument = Si::get(arguments);
+				if (!argument)
+				{
+					break;
+				}
+				push(*m_state, std::move(*argument));
+				++argument_count;
+			}
+			assert(checked_top() == (top_before + 1 + argument_count));
+			return argument_count;
+		}
+
+		void handle_pcall_result(int rc)
+		{
+			if (rc == 0)
+			{
+				return;
+			}
+			//TODO: stack trace in case of an error
+			std::string message = lua_tostring(m_state, -1);
+			lua_pop(m_state, 1);
+			boost::throw_exception(lua_exception(std::move(message)));
 		}
 	};
 

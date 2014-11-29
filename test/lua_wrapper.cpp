@@ -15,7 +15,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_load_buffer)
 {
 	auto state = lua::create_lua();
 	lua_State &L = *state;
-	lua::stack s(std::move(state));
+	lua::stack s(L);
 	std::string const code = "return 3";
 	{
 		lua::stack_value const compiled = s.load_buffer(Si::make_memory_range(code), "test");
@@ -30,7 +30,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_call_multret)
 {
 	auto state = lua::create_lua();
 	lua_State &L = *state;
-	lua::stack s(std::move(state));
+	lua::stack s(L);
 	std::string const code = "return 1, 2, 3";
 	{
 		lua::stack_value compiled = s.load_buffer(
@@ -53,7 +53,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_call)
 {
 	auto state = lua::create_lua();
 	lua_State &L = *state;
-	lua::stack s(std::move(state));
+	lua::stack s(L);
 	{
 		std::string const code = "return function (a, b, str, bool) return a * 3 + b, 7, str, not bool end";
 		boost::optional<lua_Number> result_a, result_b;
@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_reference)
 {
 	auto state = lua::create_lua();
 	lua_State &L = *state;
-	lua::stack s(std::move(state));
+	lua::stack s(L);
 	std::string const code = "return 3";
 	lua::reference const ref = lua::create_reference(L, s.load_buffer(Si::make_memory_range(code), "test"));
 	BOOST_CHECK_EQUAL(0, lua_gettop(&L));
@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_c_function)
 {
 	auto state = lua::create_lua();
 	lua_State &L = *state;
-	lua::stack s(std::move(state));
+	lua::stack s(L);
 	{
 		lua::stack_value func = s.register_function(return_3);
 		lua::stack_array results = s.call(func, lua::no_arguments(), 1);
@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_c_closure)
 {
 	auto state = lua::create_lua();
 	lua_State &L = *state;
-	lua::stack s(std::move(state));
+	lua::stack s(L);
 	{
 		std::array<lua_Number, 2> const upvalues{{1.0, 2.0}};
 		lua::stack_value func = s.register_function(return_upvalues_subtracted, Si::make_container_source(upvalues));
@@ -153,7 +153,8 @@ namespace
 	{
 		auto res = std::make_shared<lua_Number>(2);
 		{
-			lua::stack s(lua::create_lua());
+			auto state = lua::create_lua();
+			lua::stack s(*state);
 			run(s, res);
 			int top = lua_gettop(s.state());
 			BOOST_CHECK_EQUAL(0, top);

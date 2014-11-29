@@ -4,6 +4,7 @@
 #include "luacpp/stack.hpp"
 #include "luacpp/register_closure.hpp"
 #include "luacpp/from_lua_cast.hpp"
+#include "luacpp/coroutine.hpp"
 #include <silicium/detail/integer_sequence.hpp>
 
 namespace lua
@@ -22,6 +23,15 @@ namespace lua
 		template <class T>
 		struct argument_converter<T const &> : argument_converter<T>
 		{
+		};
+
+		template <>
+		struct argument_converter<coroutine>
+		{
+			coroutine operator()(lua_State &L, int) const
+			{
+				return coroutine(L);
+			}
 		};
 
 		template <class ...Parameters, std::size_t ...Indices, class Function>

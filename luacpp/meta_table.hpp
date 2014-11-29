@@ -2,6 +2,7 @@
 #define LUACPP_META_TABLE_HPP
 
 #include "luacpp/stack.hpp"
+#include "luacpp/stack_value.hpp"
 
 namespace lua
 {
