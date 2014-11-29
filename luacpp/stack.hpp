@@ -67,12 +67,29 @@ namespace lua
 		template <class Pushable, class ArgumentSource>
 		stack_array call(Pushable const &function, ArgumentSource &&arguments, boost::optional<int> expected_result_count)
 		{
+#ifndef NDEBUG
+			{
+				int status = lua_status(m_state);
+				assert(status != LUA_YIELD);
+				assert(status == 0);
+			}
+#endif
 			int const top_before = checked_top();
 			int const argument_count = push_arguments(function, arguments);
+			assert(checked_top() == top_before + argument_count + 1);
 			int const nresults = expected_result_count ? *expected_result_count : LUA_MULTRET;
-			handle_pcall_result(lua_pcall(m_state, argument_count, nresults, 0));
+			int const rc = lua_pcall(m_state, argument_count, nresults, 0);
 			int const top_after_call = checked_top();
 			assert(top_after_call >= top_before);
+			if (rc == 0)
+			{
+				assert(top_after_call == top_before + nresults);
+			}
+			else
+			{
+				assert(top_after_call == top_before + 1);
+			}
+			handle_pcall_result(rc);
 			return stack_array(*m_state, top_before + 1, variable<int>{top_after_call - top_before});
 		}
 
@@ -80,6 +97,7 @@ namespace lua
 		stack_value call(Pushable const &function, ArgumentSource &&arguments, std::integral_constant<int, 1> expected_result_count)
 		{
 			stack_array results = call(function, arguments, expected_result_count.value);
+			assert(results.size() == 1);
 			int where = results.from_bottom();
 			results.release();
 			return stack_value(*m_state, where);
@@ -94,6 +112,13 @@ namespace lua
 		template <class ArgumentSource>
 		resume_result resume(stack_value function, ArgumentSource &&arguments)
 		{
+#ifndef NDEBUG
+			{
+				int status = lua_status(m_state);
+				assert(status != LUA_YIELD);
+				assert(status == 0);
+			}
+#endif
 			int const argument_count = push_arguments(std::move(function), arguments);
 			int const rc = lua_resume(m_state, argument_count);
 			if (rc == LUA_YIELD)

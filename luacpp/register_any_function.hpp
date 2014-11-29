@@ -11,12 +11,18 @@ namespace lua
 {
 	namespace detail
 	{
+		struct call_environment
+		{
+			lua_State &L;
+			bool *suspend_requested;
+		};
+
 		template <class T>
 		struct argument_converter
 		{
-			T operator()(lua_State &L, int address) const
+			T operator()(call_environment const &env, int address) const
 			{
-				return from_lua_cast<T>(L, address);
+				return from_lua_cast<T>(env.L, address);
 			}
 		};
 
@@ -28,31 +34,32 @@ namespace lua
 		template <>
 		struct argument_converter<coroutine>
 		{
-			coroutine operator()(lua_State &L, int) const
+			coroutine operator()(call_environment const &env, int) const
 			{
-				return coroutine(L);
+				return coroutine(env.L, env.suspend_requested);
 			}
 		};
 
 		template <class ...Parameters, std::size_t ...Indices, class Function>
-		auto call_with_converted_arguments(Function &func, lua_State &L, ranges::v3::integer_sequence<Indices...>)
+		auto call_with_converted_arguments(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>)
 		{
-			return func(argument_converter<Parameters>()(L, 1 + Indices)...);
+			return func(argument_converter<Parameters>()(env, 1 + Indices)...);
 		}
 
 		template <class NonVoid>
 		struct caller
 		{
 			template <class F, class ...Arguments>
-			int operator()(lua_State &L, F const &f, Arguments &&...args) const
+			int operator()(call_environment const &env, F const &f, Arguments &&...args) const
 			{
+				assert(!env.suspend_requested || !*env.suspend_requested); //TODO
 				NonVoid result = f(std::forward<Arguments>(args)...);
-				push(L, std::move(result));
+				push(env.L, std::move(result));
 				if (sizeof...(Arguments))
 				{
-					int const top = lua_gettop(&L);
-					lua_replace(&L, (top - sizeof...(Arguments)));
-					lua_pop(&L, (sizeof...(Arguments) - 1));
+					int const top = lua_gettop(&env.L);
+					lua_replace(&env.L, (top - sizeof...(Arguments)));
+					lua_pop(&env.L, (sizeof...(Arguments) - 1));
 				}
 				return 1;
 			}
@@ -62,10 +69,14 @@ namespace lua
 		struct caller<void>
 		{
 			template <class F, class ...Arguments>
-			int operator()(lua_State &L, F const &f, Arguments &&...args) const
+			int operator()(call_environment const &env, F const &f, Arguments &&...args) const
 			{
 				f(std::forward<Arguments>(args)...);
-				lua_pop(&L, sizeof...(Arguments));
+				lua_pop(&env.L, sizeof...(Arguments));
+				if (env.suspend_requested && *env.suspend_requested)
+				{
+					return lua_yield(&env.L, 0);
+				}
 				return 0;
 			}
 		};
@@ -79,15 +90,17 @@ namespace lua
 #endif
 			](lua_State *L) -> int
 			{
-				return caller<R>()(*L, [
+				bool suspend_requested = false;
+				call_environment env{*L, &suspend_requested};
+				return caller<R>()(env, [
 #ifdef _MSC_VER
-					func, L
+					func, &env
 #else
 				&
 #endif
 				]()
 				{
-					return call_with_converted_arguments<Parameters...>(func, *L, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
+					return call_with_converted_arguments<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 				});
 			});
 		}
@@ -101,9 +114,11 @@ namespace lua
 #endif
 			](lua_State *L) mutable -> int
 			{
-				return caller<R>()(*L, [&]()
+				bool suspend_requested = false;
+				call_environment env{*L, &suspend_requested};
+				return caller<R>()(env, [&]()
 				{
-					return call_with_converted_arguments<Parameters...>(func, *L, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
+					return call_with_converted_arguments<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 				});
 			});
 		}

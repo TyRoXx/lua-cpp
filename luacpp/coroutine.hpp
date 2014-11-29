@@ -8,8 +8,15 @@ namespace lua
 {
 	struct coroutine
 	{
-		explicit coroutine(lua_State &thread)
+		coroutine()
+			: m_thread(nullptr)
+			, m_suspend_requested(nullptr)
+		{
+		}
+
+		explicit coroutine(lua_State &thread, bool *suspend_requested)
 			: m_thread(&thread)
+			, m_suspend_requested(suspend_requested)
 		{
 			int rc = lua_pushthread(&thread);
 			assert((rc != 1) && "you cannot construct a coroutine handle from the Lua main thread");
@@ -25,7 +32,9 @@ namespace lua
 
 		void suspend()
 		{
-			lua_yield(m_thread, 0);
+			assert(m_suspend_requested);
+			assert(!*m_suspend_requested);
+			*m_suspend_requested = true;
 		}
 
 		void resume()
@@ -33,17 +42,23 @@ namespace lua
 			lua_resume(m_thread, 0);
 		}
 
+		bool empty() const BOOST_NOEXCEPT
+		{
+			return m_thread == nullptr;
+		}
+
 	private:
 
 		lua_State *m_thread;
 		reference m_life;
+		bool *m_suspend_requested;
 	};
 
 	inline coroutine create_coroutine(lua_State &main_thread)
 	{
 		lua_State * const thread = lua_newthread(&main_thread);
 		stack_value discarded(main_thread, lua_gettop(&main_thread));
-		return coroutine(*thread);
+		return coroutine(*thread, nullptr);
 	}
 
 	inline stack_value xmove(stack_value from, lua_State &to)

@@ -59,6 +59,15 @@ namespace lua
 		lua_pushlightuserdata(&L, value);
 	}
 
+	struct nil
+	{
+	};
+
+	inline void push(lua_State &L, nil)
+	{
+		lua_pushnil(&L);
+	}
+
 	///Declared, but never defined because you should not call push like this.
 	///Without this declaration there might be an implicit conversion to bool.
 	void push(lua_State &L, void const *);

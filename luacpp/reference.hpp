@@ -2,6 +2,7 @@
 #define LUACPP_REFERENCE_HPP
 
 #include "luacpp/push.hpp"
+#include "luacpp/stack_value.hpp"
 #include <silicium/config.hpp>
 
 namespace lua
@@ -58,10 +59,21 @@ namespace lua
 			return m_state;
 		}
 
+		stack_value to_stack_value() const
+		{
+			push();
+			return stack_value(*m_state, lua_gettop(m_state));
+		}
+
+		stack_value to_stack_value(lua_State &destination) const
+		{
+			push(destination);
+			return stack_value(destination, lua_gettop(&destination));
+		}
+
 		virtual void push(lua_State &L) const SILICIUM_OVERRIDE
 		{
-			assert(&L == m_state);
-			push();
+			lua_rawgeti(&L, LUA_REGISTRYINDEX, m_key);
 		}
 
 	private:

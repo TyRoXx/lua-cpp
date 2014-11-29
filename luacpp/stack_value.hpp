@@ -144,6 +144,18 @@ namespace lua
 			push(L, static_cast<stack_value const &>(value));
 		}
 	}
+
+	struct xmover
+	{
+		stack_value const *from;
+	};
+
+	inline void push(lua_State &L, xmover const &value)
+	{
+		using lua::push;
+		push(*value.from->state(), *value.from);
+		lua_xmove(value.from->state(), &L, 1);
+	}
 }
 
 #endif

@@ -1,15 +1,85 @@
 #include "luacpp/register_any_function.hpp"
 #include "luacpp/meta_table.hpp"
 #include <silicium/asio/tcp_acceptor.hpp>
+#include <silicium/asio/writing_observable.hpp>
 #include <silicium/observable/end.hpp>
 #include <silicium/observable/transform.hpp>
 #include <silicium/observable/ptr.hpp>
+#include <silicium/observable/constant.hpp>
+#include <silicium/source/memory_source.hpp>
 #include <silicium/source/generator_source.hpp>
+#include <silicium/http/generate_response.hpp>
+#include <silicium/sink/iterator_sink.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
 
 namespace
 {
+	struct response_writer : private Si::observer<boost::system::error_code>
+	{
+		explicit response_writer(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+			: m_socket(std::move(socket))
+		{
+		}
+
+		void add_header(Si::noexcept_string const &key, Si::noexcept_string const &value)
+		{
+			auto sink = Si::make_container_sink(m_send_buffer);
+			if (m_send_buffer.empty())
+			{
+				Si::http::generate_status_line(sink, "HTTP/1.0", "200", "OK");
+			}
+			Si::http::generate_header(sink, key, value);
+		}
+
+		void set_content(Si::noexcept_string const &content, lua::coroutine coro)
+		{
+			add_header("Content-Length", boost::lexical_cast<Si::noexcept_string>(content.size()));
+			m_send_buffer.push_back('\r');
+			m_send_buffer.push_back('\n');
+			m_send_buffer.insert(m_send_buffer.end(), content.begin(), content.end());
+			return send(std::move(coro));
+		}
+
+	private:
+
+		typedef Si::asio::writing_observable<boost::asio::ip::tcp::socket, Si::constant_observable<Si::memory_range>> writer;
+
+		std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
+		std::vector<char> m_send_buffer;
+		writer m_writer;
+		lua::coroutine m_suspended;
+
+		void send(lua::coroutine coro)
+		{
+			assert(m_suspended.empty());
+			assert(!m_send_buffer.empty());
+			m_writer = writer(*m_socket, Si::make_constant_observable(Si::make_memory_range(m_send_buffer)));
+			m_writer.async_get_one(static_cast<Si::observer<boost::system::error_code> &>(*this));
+			m_suspended = std::move(coro);
+			return coro.suspend();
+		}
+
+		virtual void got_element(boost::system::error_code value) SILICIUM_OVERRIDE
+		{
+			assert(!m_suspended.empty());
+			auto coro = std::move(m_suspended);
+			coro.resume();
+
+			//ignore the request for now
+			boost::array<char, 1024> buffer;
+			boost::system::error_code ec;
+			m_socket->read_some(boost::asio::buffer(buffer), ec);
+
+			m_socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+		}
+
+		virtual void ended() SILICIUM_OVERRIDE
+		{
+			SILICIUM_UNREACHABLE();
+		}
+	};
+
 	struct server : private Si::observer<Si::ended>
 	{
 		explicit server(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint, lua::reference on_request)
@@ -72,8 +142,26 @@ namespace
 
 		void handle_client(Si::asio::tcp_acceptor_result client)
 		{
-			lua::stack s(*m_on_request.state());
-			s.call(m_on_request, lua::no_arguments(), 0);
+			if (client.is_error())
+			{
+				return;
+			}
+			lua_State &parent = *m_on_request.state();
+			lua::stack parent_stack(parent);
+			lua::stack_value meta = lua::create_default_meta_table<response_writer>(parent_stack);
+			add_method(parent_stack, meta, "add_header", &response_writer::add_header);
+			add_method(parent_stack, meta, "set_content", &response_writer::set_content);
+			auto response = lua::emplace_object<response_writer>(parent_stack, meta, client.get());
+
+			lua::coroutine child_coro = lua::create_coroutine(parent);
+			lua::stack child_stack(child_coro.thread());
+			std::array<Si::fast_variant<lua::nil, lua::xmover>, 2> arguments
+			{{
+				lua::nil(),
+				lua::xmover{&response}
+			}};
+			child_stack.resume(m_on_request.to_stack_value(child_coro.thread()), Si::make_container_source(std::move(arguments)));
+			assert(lua_gettop(child_stack.state()) == 0);
 		}
 	};
 
@@ -148,6 +236,8 @@ int main(int argc, char **argv)
 	boost::asio::io_service io;
 
 	auto state = lua::create_lua();
+	luaopen_base(state.get());
+	luaopen_string(state.get());
 	lua::stack stack(*state);
 	std::pair<lua::error, lua::stack_value> first_level = stack.load_file(program);
 	if (first_level.first != lua::error::success)
