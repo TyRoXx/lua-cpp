@@ -183,9 +183,9 @@ namespace
 					return register_any_function(stack, [&stack, &io](lua_Integer port, lua::reference on_request)
 					{
 						boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
-						return lua::emplace_object<::server>(stack, [&stack](lua_State &)
+						return lua::emplace_object< ::server>(stack, [&stack](lua_State &)
 						{
-							lua::stack_value meta = lua::create_default_meta_table<::server>(stack);
+							lua::stack_value meta = lua::create_default_meta_table< ::server>(stack);
 							add_method(stack, meta, "wait", &server::wait);
 							add_method(stack, meta, "connection_count", &server::connection_count);
 							return meta;
