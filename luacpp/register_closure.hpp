@@ -6,14 +6,40 @@
 
 namespace lua
 {
+	struct yield
+	{
+	};
+
+	typedef Si::fast_variant<int, yield> result_or_yield;
+
 	namespace detail
 	{
 		template <class Function>
 		int call_upvalue_function(lua_State *L) BOOST_NOEXCEPT
 		{
-			Function * const f_stored = static_cast<Function *>(lua_touserdata(L, lua_upvalueindex(1)));
-			assert(f_stored);
-			return (*f_stored)(L);
+			int result;
+			bool yielding = false;
+			{
+				Function * const f_stored = static_cast<Function *>(lua_touserdata(L, lua_upvalueindex(1)));
+				assert(f_stored);
+				result_or_yield command = (*f_stored)(L);
+				Si::visit<void>(
+					command,
+					[&result](int rc)
+					{
+						result = rc;
+					},
+					[&yielding](yield)
+					{
+						yielding = true;
+					}
+				);
+			}
+			if (yielding)
+			{
+				return lua_yield(L, 0);
+			}
+			return result;
 		}
 
 		template <class Function>

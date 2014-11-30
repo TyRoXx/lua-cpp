@@ -50,7 +50,7 @@ namespace lua
 		struct caller
 		{
 			template <class F, class ...Arguments>
-			int operator()(call_environment const &env, F const &f, Arguments &&...args) const
+			result_or_yield operator()(call_environment const &env, F const &f, Arguments &&...args) const
 			{
 				assert(!env.suspend_requested || !*env.suspend_requested); //TODO
 				NonVoid result = f(std::forward<Arguments>(args)...);
@@ -69,13 +69,13 @@ namespace lua
 		struct caller<void>
 		{
 			template <class F, class ...Arguments>
-			int operator()(call_environment const &env, F const &f, Arguments &&...args) const
+			result_or_yield operator()(call_environment const &env, F const &f, Arguments &&...args) const
 			{
 				f(std::forward<Arguments>(args)...);
 				lua_pop(&env.L, sizeof...(Arguments));
 				if (env.suspend_requested && *env.suspend_requested)
 				{
-					return lua_yield(&env.L, 0);
+					return yield();
 				}
 				return 0;
 			}
@@ -88,7 +88,7 @@ namespace lua
 #ifndef _MSC_VER
 				= std::move(func)
 #endif
-			](lua_State *L) -> int
+			](lua_State *L)
 			{
 				bool suspend_requested = false;
 				call_environment env{*L, &suspend_requested};
@@ -112,7 +112,7 @@ namespace lua
 #ifndef _MSC_VER
 				= std::move(func)
 #endif
-			](lua_State *L) mutable -> int
+			](lua_State *L) mutable
 			{
 				bool suspend_requested = false;
 				call_environment env{*L, &suspend_requested};
