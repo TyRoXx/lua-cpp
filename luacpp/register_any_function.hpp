@@ -72,7 +72,7 @@ namespace lua
 			result_or_yield operator()(call_environment const &env, F const &f, Arguments &&...args) const
 			{
 				f(std::forward<Arguments>(args)...);
-				lua_pop(&env.L, sizeof...(Arguments));
+				lua_pop(&env.L, static_cast<int>(sizeof...(Arguments)));
 				if (env.suspend_requested && *env.suspend_requested)
 				{
 					return yield();
