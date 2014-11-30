@@ -37,9 +37,15 @@ namespace lua
 			*m_suspend_requested = true;
 		}
 
-		void resume()
+		void resume(int argument_count)
 		{
-			lua_resume(m_thread, lua_gettop(m_thread));
+			int const rc = lua_resume(m_thread, argument_count);
+			if (rc && (rc != LUA_YIELD))
+			{
+				std::string message = lua_tostring(m_thread, -1);
+				lua_pop(m_thread, 1);
+				boost::throw_exception(lua_exception(std::move(message)));
+			}
 		}
 
 		bool empty() const BOOST_NOEXCEPT

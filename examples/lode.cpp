@@ -64,7 +64,7 @@ namespace
 		{
 			assert(!m_suspended.empty());
 			auto coro = std::move(m_suspended);
-			coro.resume();
+			coro.resume(0);
 
 			//ignore the request for now
 			boost::array<char, 1024> buffer;
@@ -80,31 +80,18 @@ namespace
 		}
 	};
 
-	struct server : private Si::observer<Si::ended>
+	struct server : private Si::observer<Si::asio::tcp_acceptor_result>
 	{
-		explicit server(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint, lua::reference on_request)
+		explicit server(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
 			: m_acceptor(io, endpoint)
-			, m_incoming_clients(
-				Si::erase_unique(
-					Si::transform(
-						Si::asio::tcp_acceptor(m_acceptor),
-						[this](Si::asio::tcp_acceptor_result client) -> Si::nothing
-						{
-							handle_client(std::move(client));
-							return {};
-						}
-					)
-				)
-			)
-			, m_on_request(std::move(on_request))
+			, m_incoming_clients(m_acceptor)
 		{
 		}
 
-		void wait(lua::coroutine coro)
+		void sync_get(lua::coroutine coro)
 		{
-			std::cerr << "waiting\n";
 			m_waiting = true;
-			m_incoming_clients.async_get_one(static_cast<Si::observer<Si::ended> &>(*this));
+			m_incoming_clients.async_get_one(static_cast<Si::observer<Si::asio::tcp_acceptor_result> &>(*this));
 			if (m_waiting)
 			{
 				m_suspended = std::move(coro);
@@ -112,27 +99,37 @@ namespace
 			}
 		}
 
-		lua_Integer connection_count() const
-		{
-			return 0;
-		}
-
 	private:
 
 		boost::asio::ip::tcp::acceptor m_acceptor;
-		Si::end_observable<Si::unique_observable<Si::nothing>> m_incoming_clients;
-		lua::reference m_on_request;
+		Si::asio::tcp_acceptor m_incoming_clients;
 		bool m_waiting;
 		boost::optional<lua::coroutine> m_suspended;
 
-		virtual void got_element(Si::ended) SILICIUM_OVERRIDE
+		virtual void got_element(Si::asio::tcp_acceptor_result incoming) SILICIUM_OVERRIDE
 		{
 			assert(m_waiting);
+			assert(m_suspended);
 			m_waiting = false;
-			if (m_suspended)
+
+			if (incoming.is_error())
 			{
-				return Si::exchange(m_suspended, boost::none)->resume();
+				return Si::exchange(m_suspended, boost::none)->resume(1);
 			}
+
+			lua::coroutine &child_coro = *m_suspended;
+			lua::stack child_stack(child_coro.thread());
+
+			lua::stack_value meta = lua::create_default_meta_table<response_writer>(child_stack);
+			add_method(child_stack, meta, "add_header", &response_writer::add_header);
+			add_method(child_stack, meta, "set_content", &response_writer::set_content);
+			lua::stack_value response = lua::emplace_object<response_writer>(child_stack, meta, incoming.get());
+			replace(response, meta);
+
+			assert(lua_gettop(child_stack.state()) == 1);
+			response.release();
+			child_coro.resume(1);
+			assert(lua_gettop(child_stack.state()) == 0);
 		}
 
 		virtual void ended() SILICIUM_OVERRIDE
@@ -146,22 +143,6 @@ namespace
 			{
 				return;
 			}
-			lua_State &parent = *m_on_request.state();
-			lua::stack parent_stack(parent);
-			lua::stack_value meta = lua::create_default_meta_table<response_writer>(parent_stack);
-			add_method(parent_stack, meta, "add_header", &response_writer::add_header);
-			add_method(parent_stack, meta, "set_content", &response_writer::set_content);
-			auto response = lua::emplace_object<response_writer>(parent_stack, meta, client.get());
-
-			lua::coroutine child_coro = lua::create_coroutine(parent);
-			lua::stack child_stack(child_coro.thread());
-			std::array<Si::fast_variant<lua::nil, lua::xmover>, 2> arguments
-			{{
-				lua::nil(),
-				lua::xmover{&response}
-			}};
-			child_stack.resume(m_on_request.to_stack_value(child_coro.thread()), Si::make_container_source(std::move(arguments)));
-			assert(lua_gettop(child_stack.state()) == 0);
 		}
 	};
 
@@ -180,16 +161,15 @@ namespace
 				"create_server",
 				[&stack, &io](lua_State &)
 				{
-					return register_any_function(stack, [&stack, &io](lua_Integer port, lua::reference on_request)
+					return register_any_function(stack, [&stack, &io](lua_Integer port)
 					{
 						boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
 						return lua::emplace_object< ::server>(stack, [&stack](lua_State &)
 						{
 							lua::stack_value meta = lua::create_default_meta_table< ::server>(stack);
-							add_method(stack, meta, "wait", &server::wait);
-							add_method(stack, meta, "connection_count", &server::connection_count);
+							add_method(stack, meta, "sync_get", &server::sync_get);
 							return meta;
-						}, io, endpoint, std::move(on_request));
+						}, io, endpoint);
 					});
 				}
 			);
