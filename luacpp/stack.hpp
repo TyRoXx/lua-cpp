@@ -83,7 +83,7 @@ namespace lua
 			assert(top_after_call >= top_before);
 			if (rc == 0)
 			{
-				assert(top_after_call == top_before + nresults);
+				assert(!expected_result_count || (top_after_call == top_before + nresults));
 			}
 			else
 			{

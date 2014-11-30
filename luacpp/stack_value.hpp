@@ -95,6 +95,7 @@ namespace lua
 
 		void assert_top() const
 		{
+			assert(m_state);
 			assert(lua_gettop(m_state) == from_bottom());
 		}
 
@@ -102,6 +103,7 @@ namespace lua
 		basic_stack_value<std::integral_constant<int, 1>> operator[](Pushable &&index)
 		{
 			using lua::push;
+			assert(m_state);
 			push(*m_state, std::forward<Pushable>(index));
 			lua_gettable(m_state, from_bottom());
 			return basic_stack_value<std::integral_constant<int, 1>>(*m_state, lua_gettop(m_state));
@@ -120,6 +122,16 @@ namespace lua
 
 	typedef basic_stack_value<std::integral_constant<int, 1>> stack_value;
 	typedef basic_stack_value<variable<int>> stack_array;
+
+	inline void replace(stack_value &replacement, stack_value &replaced)
+	{
+		assert(replacement.state());
+		assert(replacement.state() == replaced.state());
+		replacement.assert_top();
+		lua_replace(replacement.state(), replaced.from_bottom());
+		replacement.release();
+		replacement = std::move(replaced);
+	}
 
 	template <class Size>
 	any_local at(basic_stack_value<Size> const &array, int index)

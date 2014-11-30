@@ -39,7 +39,7 @@ namespace lua
 
 		void resume()
 		{
-			lua_resume(m_thread, 0);
+			lua_resume(m_thread, lua_gettop(m_thread));
 		}
 
 		bool empty() const BOOST_NOEXCEPT
