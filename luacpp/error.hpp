@@ -4,7 +4,7 @@
 #include "luacpp/lua.hpp"
 #include <boost/config.hpp>
 #include <boost/system/system_error.hpp>
-#include <silicium/override.hpp>
+#include <silicium/config.hpp>
 
 namespace lua
 {

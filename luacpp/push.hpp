@@ -2,10 +2,9 @@
 #define LUACPP_PUSH_HPP
 
 #include "luacpp/type.hpp"
-#include <boost/config.hpp>
 #include <cassert>
 #include <silicium/noexcept_string.hpp>
-#include <silicium/override.hpp>
+#include <silicium/config.hpp>
 #include <silicium/fast_variant.hpp>
 
 namespace lua
