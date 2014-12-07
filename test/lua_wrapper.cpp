@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_reference)
 	lua_State &L = *state;
 	lua::stack s(L);
 	std::string const code = "return 3";
-	lua::reference const ref = lua::create_reference(L, s.load_buffer(Si::make_memory_range(code), "test"));
+	lua::reference const ref = lua::create_reference(lua::main_thread(L), s.load_buffer(Si::make_memory_range(code), "test"));
 	BOOST_CHECK_EQUAL(0, lua_gettop(&L));
 	BOOST_REQUIRE(!ref.empty());
 	{
@@ -220,8 +220,8 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 				Si::noexcept_string str,
 				Si::noexcept_string const &strc,
 				char const *c_str,
-				lua::reference ref,
-				lua::reference const &refc,
+				lua::any_local local,
+				lua::any_local const &localc,
 				void *u,
 				void * const &uc
 			) -> Si::noexcept_string
@@ -241,8 +241,8 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			BOOST_CHECK_EQUAL("ABC", strc);
 			BOOST_REQUIRE(c_str);
 			BOOST_CHECK_EQUAL(Si::noexcept_string("def"), c_str);
-			BOOST_CHECK_EQUAL(-1.0, lua::from_lua_cast<lua_Number>(*s.state(), ref));
-			BOOST_CHECK_EQUAL(-2.0, lua::from_lua_cast<lua_Number>(*s.state(), refc));
+			BOOST_CHECK_EQUAL(-1.0, lua::from_lua_cast<lua_Number>(local));
+			BOOST_CHECK_EQUAL(-2.0, lua::from_lua_cast<lua_Number>(localc));
 			BOOST_CHECK_EQUAL(&s, u);
 			BOOST_CHECK_EQUAL(&s, uc);
 			return "it works";
@@ -377,7 +377,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yield)
 {
 	test_with_environment([](lua::stack &s, resource bound)
 	{
-		lua::coroutine coro = lua::create_coroutine(*s.state());
+		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
 		lua::stack_value entry_point = coro_stack.register_function([](lua_State *L) -> int
 		{
@@ -392,10 +392,10 @@ namespace
 {
 	struct yielder
 	{
-		lua_State *main_thread;
+		lua::main_thread main_thread;
 
-		explicit yielder(lua_State &main_thread)
-			: main_thread(&main_thread)
+		explicit yielder(lua::main_thread main_thread)
+			: main_thread(main_thread)
 		{
 		}
 
@@ -406,8 +406,8 @@ namespace
 
 		void yield(lua::current_thread thread)
 		{
-			assert(main_thread);
-			boost::optional<lua::coroutine> coro = lua::pin_coroutine(*main_thread, thread);
+			assert(main_thread.get());
+			boost::optional<lua::coroutine> coro = lua::pin_coroutine(main_thread, thread);
 			BOOST_REQUIRE(coro);
 			coro->suspend();
 		}
@@ -418,11 +418,11 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yielding_method)
 {
 	test_with_environment([](lua::stack &s, resource bound)
 	{
-		lua::coroutine coro = lua::create_coroutine(*s.state());
+		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
 		lua::stack_value meta = lua::create_default_meta_table<yielder>(coro_stack);
 		lua::add_method(coro_stack, meta, "__call", &yielder::operator ());
-		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, *s.state());
+		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, lua::main_thread(*s.state()));
 		lua::replace(object, meta);
 		lua::stack::resume_result result = coro_stack.resume(std::move(object), lua::no_arguments());
 		BOOST_CHECK(nullptr != Si::try_get_ptr<lua::stack::yield>(result));
@@ -433,7 +433,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 {
 	test_with_environment([](lua::stack &s, resource bound)
 	{
-		lua::coroutine coro = lua::create_coroutine(*s.state());
+		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
 
 		lua::stack_value entry_point = coro_stack.load_buffer(Si::make_c_str_range("return function (yielder) yielder:yield() end"), "test");
@@ -447,7 +447,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 
 		lua::stack_value meta = lua::create_default_meta_table<yielder>(coro_stack);
 		lua::add_method(coro_stack, meta, "yield", &yielder::yield);
-		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, *s.state());
+		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, lua::main_thread(*s.state()));
 		lua::replace(object, meta);
 		BOOST_REQUIRE_EQUAL(lua::type::user_data, coro_stack.get_type(object));
 
@@ -462,7 +462,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_finish)
 {
 	test_with_environment([](lua::stack &s, resource bound)
 	{
-		lua::coroutine coro = lua::create_coroutine(*s.state());
+		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
 		lua::stack_value entry_point = coro_stack.register_function([](lua_State *L) -> int
 		{

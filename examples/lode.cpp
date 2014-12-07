@@ -21,8 +21,8 @@ namespace
 {
 	struct tcp_client : private Si::observer<boost::system::error_code>
 	{
-		explicit tcp_client(lua_State &main_thread, std::shared_ptr<boost::asio::ip::tcp::socket> socket)
-			: m_main_thread(&main_thread)
+		explicit tcp_client(lua::main_thread main_thread, std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+			: m_main_thread(main_thread)
 			, m_socket(std::move(socket))
 			, m_sender(Si::asio::make_writing_observable(*m_socket, Si::erase_unique(Si::make_generator_observable([this]() -> Si::memory_range
 			{
@@ -39,8 +39,7 @@ namespace
 
 		void flush(lua::current_thread thread)
 		{
-			assert(m_main_thread);
-			boost::optional<lua::coroutine> coro = lua::pin_coroutine(*m_main_thread, thread);
+			boost::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
 			if (!coro)
 			{
 				std::terminate(); //TODO
@@ -53,7 +52,7 @@ namespace
 
 	private:
 
-		lua_State *m_main_thread;
+		lua::main_thread m_main_thread;
 		std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
 		Si::noexcept_string m_send_buffer;
 		Si::asio::writing_observable<boost::asio::ip::tcp::socket, Si::unique_observable<Si::memory_range>> m_sender;
@@ -87,8 +86,8 @@ namespace
 
 	struct tcp_acceptor : private Si::observer<Si::asio::tcp_acceptor_result>
 	{
-		explicit tcp_acceptor(lua_State &main_thread, boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
-			: m_main_thread(&main_thread)
+		explicit tcp_acceptor(lua::main_thread main_thread, boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
+			: m_main_thread(main_thread)
 			, m_acceptor(io, endpoint)
 			, m_incoming_clients(m_acceptor)
 		{
@@ -96,7 +95,7 @@ namespace
 
 		void sync_get(lua::current_thread thread)
 		{
-			boost::optional<lua::coroutine> coro = lua::pin_coroutine(*m_main_thread, thread);
+			boost::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
 			if (!coro)
 			{
 				std::terminate(); //TODO
@@ -113,7 +112,7 @@ namespace
 
 	private:
 
-		lua_State *m_main_thread;
+		lua::main_thread m_main_thread;
 		boost::asio::ip::tcp::acceptor m_acceptor;
 		Si::asio::tcp_acceptor m_incoming_clients;
 		bool m_waiting;
@@ -149,7 +148,7 @@ namespace
 			assert(child_stack.size() == 1);
 			assert(child_stack.get_type(meta) == lua::type::table);
 
-			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, meta, *m_main_thread, incoming.get());
+			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, meta, m_main_thread, incoming.get());
 			replace(client, meta);
 
 			assert(lua_gettop(child_stack.state()) == 1);
@@ -197,7 +196,7 @@ namespace
 	};
 
 	lua::stack_value require_package(
-		lua_State &main_thread,
+		lua::main_thread main_thread,
 		lua::stack &stack,
 		boost::asio::io_service &io,
 		Si::noexcept_string const &name,
@@ -209,9 +208,9 @@ namespace
 			stack.set_element(
 				module,
 				"create_acceptor",
-				[&main_thread, &stack, &io](lua_State &)
+				[main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [&main_thread, &stack, &io](lua_Integer port)
+				return lua::register_any_function(stack, [main_thread, &stack, &io](lua_Integer port)
 				{
 					boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
 					return lua::emplace_object< ::tcp_acceptor>(stack, [&stack](lua_State &)
@@ -231,9 +230,9 @@ namespace
 			stack.set_element(
 				module,
 				"make_response_generator",
-				[&main_thread, &stack, &io](lua_State &)
+				[main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [&main_thread, &stack, &io](lua::any_local const &sink)
+				return lua::register_any_function(stack, [main_thread, &stack, &io](lua::any_local const &sink)
 				{
 					lua::stack_value meta = lua::create_default_meta_table<http_response_generator>(stack);
 					lua::add_method(stack, meta, "status_line", &http_response_generator::status_line);
@@ -326,14 +325,14 @@ int main(int argc, char **argv)
 	try
 	{
 		lua::stack_value second_level = stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
-		lua::coroutine runner = lua::create_coroutine(*stack.state());
+		lua::main_thread main_thread(*state);
+		lua::coroutine runner = lua::create_coroutine(main_thread);
 		lua::stack runner_stack(runner.thread());
-		lua_State &main_thread = *state;
 		lua::stack::resume_result resumed = runner_stack.resume(
 			lua::xmove(std::move(second_level), runner.thread()),
-			Si::make_oneshot_generator_source([&main_thread, &runner_stack, &io]()
+			Si::make_oneshot_generator_source([main_thread, &runner_stack, &io]()
 		{
-			return lua::register_any_function(runner_stack, [&main_thread, &runner_stack, &io](Si::noexcept_string const &name, Si::noexcept_string const &version)
+			return lua::register_any_function(runner_stack, [main_thread, &runner_stack, &io](Si::noexcept_string const &name, Si::noexcept_string const &version)
 			{
 				return require_package(main_thread, runner_stack, io, name, version);
 			});

@@ -7,51 +7,80 @@
 
 namespace lua
 {
-	struct reference : pushable
+	inline bool is_main_thread(lua_State &state)
 	{
-		reference() BOOST_NOEXCEPT
+		int rc = lua_pushthread(&state);
+		stack_value thread_on_stack(state, lua_gettop(&state));
+		return rc == 1;
+	}
+
+	struct main_thread
+	{
+		main_thread()
 			: m_state(nullptr)
 		{
 		}
 
-		explicit reference(lua_State &state, int key) BOOST_NOEXCEPT
+		explicit main_thread(lua_State &state)
 			: m_state(&state)
+		{
+			assert(is_main_thread(state));
+		}
+
+		lua_State *get() const BOOST_NOEXCEPT
+		{
+			return m_state;
+		}
+
+	private:
+
+		lua_State *m_state;
+	};
+
+	struct reference : pushable
+	{
+		reference() BOOST_NOEXCEPT
+		{
+		}
+
+		explicit reference(main_thread thread, int key) BOOST_NOEXCEPT
+			: m_thread(thread)
 			, m_key(key)
 		{
-			assert((lua_pushthread(&state) == 1 && [&state]() { lua_pop(&state, 1); return true; }()));
+			assert((lua_pushthread(state()) == 1 && [this]() { lua_pop(state(), 1); return true; }()));
 		}
 
 		reference(reference &&other) BOOST_NOEXCEPT
-			: m_state(other.m_state)
+			: m_thread(other.m_thread)
 			, m_key(other.m_key)
 		{
-			other.m_state = nullptr;
+			other.m_thread = main_thread();
 		}
 
 		reference &operator = (reference &&other) BOOST_NOEXCEPT
 		{
-			std::swap(m_state, other.m_state);
+			std::swap(m_thread, other.m_thread);
 			std::swap(m_key, other.m_key);
 			return *this;
 		}
 
 		~reference() BOOST_NOEXCEPT
 		{
-			if (!m_state)
+			if (!state())
 			{
 				return;
 			}
-			luaL_unref(m_state, LUA_REGISTRYINDEX, m_key);
+			luaL_unref(state(), LUA_REGISTRYINDEX, m_key);
 		}
 
 		bool empty() const BOOST_NOEXCEPT
 		{
-			return !m_state;
+			return !state();
 		}
 
 		lua_State *state() const BOOST_NOEXCEPT
 		{
-			return m_state;
+			return m_thread.get();
 		}
 
 		stack_value to_stack_value(lua_State &destination) const
@@ -67,12 +96,12 @@ namespace lua
 
 		type get_type() const
 		{
-			return to_stack_value(*m_state).get_type();
+			return to_stack_value(*state()).get_type();
 		}
 
 	private:
 
-		lua_State *m_state;
+		main_thread m_thread;
 		int m_key;
 
 		SILICIUM_DELETED_FUNCTION(reference(reference const &))
@@ -80,11 +109,12 @@ namespace lua
 	};
 
 	template <class Pushable>
-	reference create_reference(lua_State &L, Pushable const &value)
+	reference create_reference(main_thread thread, Pushable const &value)
 	{
-		push(L, value);
-		int key = luaL_ref(&L, LUA_REGISTRYINDEX);
-		return reference(L, key);
+		assert(thread.get());
+		push(*thread.get(), value);
+		int key = luaL_ref(thread.get(), LUA_REGISTRYINDEX);
+		return reference(thread, key);
 	}
 }
 

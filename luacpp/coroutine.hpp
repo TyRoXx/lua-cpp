@@ -63,11 +63,12 @@ namespace lua
 		bool *m_suspend_requested;
 	};
 
-	inline coroutine create_coroutine(lua_State &main_thread)
+	inline coroutine create_coroutine(main_thread thread)
 	{
-		lua_newthread(&main_thread);
-		stack_value thread_on_stack(main_thread, lua_gettop(&main_thread));
-		return coroutine(create_reference(main_thread, thread_on_stack), nullptr);
+		assert(thread.get());
+		lua_newthread(thread.get());
+		stack_value thread_on_stack(*thread.get(), lua_gettop(thread.get()));
+		return coroutine(create_reference(thread, thread_on_stack), nullptr);
 	}
 
 	inline stack_value xmove(stack_value from, lua_State &to)

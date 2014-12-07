@@ -80,19 +80,16 @@ namespace lua
 		}
 	};
 
-	template <>
-	struct from_lua<reference>
-	{
-		reference operator()(lua_State &L, int address) const
-		{
-			return create_reference(L, any_local(L, address));
-		}
-	};
-
 	template <class T>
 	T from_lua_cast(lua_State &L, int address)
 	{
 		return from_lua<T>()(L, address);
+	}
+
+	template <class T>
+	T from_lua_cast(any_local address)
+	{
+		return from_lua<T>()(*address.thread(), address.from_bottom());
 	}
 
 	template <class T>

@@ -15,7 +15,7 @@ namespace lua
 		bool *suspend_requested;
 	};
 
-	inline boost::optional<coroutine> pin_coroutine(lua_State &main_thread, current_thread potential_child_thread)
+	inline boost::optional<coroutine> pin_coroutine(main_thread thread, current_thread potential_child_thread)
 	{
 		int rc = lua_pushthread(potential_child_thread.L);
 		stack_value thread_on_stack(*potential_child_thread.L, lua_gettop(potential_child_thread.L));
@@ -23,7 +23,7 @@ namespace lua
 		{
 			return boost::none;
 		}
-		return coroutine(create_reference(main_thread, xmover{&thread_on_stack}), potential_child_thread.suspend_requested);
+		return coroutine(create_reference(thread, xmover{&thread_on_stack}), potential_child_thread.suspend_requested);
 	}
 
 	namespace detail
