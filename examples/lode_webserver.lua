@@ -9,15 +9,25 @@ local sync_for_each = function (observable, handler)
 end
 
 return function (require)
-	local web = require("web", "2.0")
+	local tcp = require("tcp", "1.0")
+	local http = require("http", "1.0")
 	local visitor_count = 0
-	local requests = web.create_server(8080)
-	sync_for_each(requests, function (response)
-		coroutine.resume(coroutine.create(function ()
-			response:add_header("Content-Type", "text/html")
-			response:add_header("Connection", "close")
+	local clients = tcp.create_acceptor(8080)
+	sync_for_each(clients, function (client)
+		--coroutine.resume(coroutine.create(function ()
+		--	local request = http.parse_request(client:receiver())
+		--	if request == nil then
+		--		-- respond with bad request or sth
+		--		return
+		--	end
+			local sender = client
+			local response = http.make_response_generator(sender)
+			response:status_line("200", "OK", "HTTP/1.0")
+			response:header("Content-Type", "text/html")
+			response:header("Connection", "close")
 			visitor_count = visitor_count + 1
-			response:set_content("Hello, world!<br>Visitor number: " .. tostring(visitor_count))
-		end))
+			response:content("Hello, world!<br>Visitor number: " .. tostring(visitor_count))
+			sender:flush()
+		--end))
 	end)
 end
