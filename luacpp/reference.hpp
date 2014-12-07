@@ -48,12 +48,6 @@ namespace lua
 			return !m_state;
 		}
 
-		void push() const BOOST_NOEXCEPT
-		{
-			assert(!empty());
-			lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_key);
-		}
-
 		lua_State *state() const BOOST_NOEXCEPT
 		{
 			return m_state;
@@ -61,7 +55,7 @@ namespace lua
 
 		stack_value to_stack_value() const
 		{
-			push();
+			push(*m_state);
 			return stack_value(*m_state, lua_gettop(m_state));
 		}
 
@@ -84,11 +78,6 @@ namespace lua
 		SILICIUM_DELETED_FUNCTION(reference(reference const &))
 		SILICIUM_DELETED_FUNCTION(reference &operator = (reference const &))
 	};
-
-	inline void push(lua_State &, reference const &ref) BOOST_NOEXCEPT
-	{
-		ref.push();
-	}
 
 	template <class Pushable>
 	reference create_reference(lua_State &L, Pushable const &value)

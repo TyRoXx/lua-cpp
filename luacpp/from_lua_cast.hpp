@@ -3,6 +3,7 @@
 
 #include "luacpp/stack_value.hpp"
 #include "luacpp/reference.hpp"
+#include <silicium/memory_range.hpp>
 
 namespace lua
 {
@@ -69,6 +70,17 @@ namespace lua
 	};
 
 	template <>
+	struct from_lua<Si::memory_range>
+	{
+		Si::memory_range operator()(lua_State &L, int address) const
+		{
+			std::size_t length = 0;
+			char const *begin = lua_tolstring(&L, address, &length);
+			return Si::make_memory_range(begin, begin + length);
+		}
+	};
+
+	template <>
 	struct from_lua<reference>
 	{
 		reference operator()(lua_State &L, int address) const
@@ -86,7 +98,7 @@ namespace lua
 	template <class T>
 	T from_lua_cast(lua_State &L, reference const &ref)
 	{
-		ref.push();
+		ref.push(L);
 		stack_value pushed(L, lua_gettop(&L));
 		return from_lua<T>()(L, pushed.from_bottom());
 	}
