@@ -34,11 +34,14 @@ namespace lua
 		{
 			assert(m_suspend_requested);
 			assert(!*m_suspend_requested);
+			assert(lua_status(m_thread) == 0);
+			assert(m_thread);
 			*m_suspend_requested = true;
 		}
 
 		void resume(int argument_count)
 		{
+			assert(lua_status(m_thread) == LUA_YIELD || lua_status(m_thread) == 0);
 			int const rc = lua_resume(m_thread, argument_count);
 			if (rc && (rc != LUA_YIELD))
 			{

@@ -43,15 +43,21 @@ namespace lua
 	template <class MetaTable, class Name, class R, class Class, class ...Args>
 	void add_method(lua::stack &s, MetaTable &&meta, Name &&name, R (Class::*method)(Args...))
 	{
-		s.set_element(
-			meta,
-			std::forward<Name>(name),
-			lua::register_any_function(s, [method](void *this_, Args ...args) -> R
+		assert(s.get_type(meta) == type::table);
+		stack_value registered_method = lua::register_any_function(s, [method](void *this_, Args ...args) -> R
 		{
 			Class * const raw_this = static_cast<Class *>(this_);
 			assert(raw_this);
 			return (raw_this->*method)(std::forward<Args>(args)...);
-		}));
+		});
+		print_stack(std::cerr, *s.state());
+		assert(s.get_type(meta) == type::table);
+		assert(s.get_type(registered_method) == type::function);
+		s.set_element(
+			meta,
+			std::forward<Name>(name),
+			std::move(registered_method)
+		);
 	}
 
 	template <class MetaTable, class Name, class R, class Class, class ...Args>
