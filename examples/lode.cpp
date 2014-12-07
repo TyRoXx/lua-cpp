@@ -173,19 +173,19 @@ namespace
 
 		void status_line(Si::memory_range status, Si::memory_range status_text, Si::memory_range version, lua_State &state)
 		{
-			lua::sink_into_lua<char> native_sink(m_sink, state);
+			lua::text_sink_into_lua native_sink(m_sink, state);
 			Si::http::generate_status_line(native_sink, version, status, status_text);
 		}
 
 		void header(Si::memory_range key, Si::memory_range value, lua_State &state)
 		{
-			lua::sink_into_lua<char> native_sink(m_sink, state);
+			lua::text_sink_into_lua native_sink(m_sink, state);
 			Si::http::generate_header(native_sink, key, value);
 		}
 
 		void content(Si::memory_range content, lua_State &state)
 		{
-			lua::sink_into_lua<char> native_sink(m_sink, state);
+			lua::text_sink_into_lua native_sink(m_sink, state);
 			Si::append(native_sink, "\r\n");
 			native_sink.append(content);
 		}

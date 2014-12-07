@@ -6,6 +6,7 @@
 #include <silicium/noexcept_string.hpp>
 #include <silicium/config.hpp>
 #include <silicium/fast_variant.hpp>
+#include <silicium/memory_range.hpp>
 
 namespace lua
 {
@@ -51,6 +52,11 @@ namespace lua
 	inline void push(lua_State &L, char const *c_str) BOOST_NOEXCEPT
 	{
 		lua_pushstring(&L, c_str);
+	}
+
+	inline void push(lua_State &L, Si::memory_range string) BOOST_NOEXCEPT
+	{
+		lua_pushlstring(&L, string.begin(), string.size());
 	}
 
 	inline void push(lua_State &L, bool value) BOOST_NOEXCEPT
