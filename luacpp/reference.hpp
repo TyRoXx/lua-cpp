@@ -53,12 +53,6 @@ namespace lua
 			return m_state;
 		}
 
-		stack_value to_stack_value() const
-		{
-			push(*m_state);
-			return stack_value(*m_state, lua_gettop(m_state));
-		}
-
 		stack_value to_stack_value(lua_State &destination) const
 		{
 			push(destination);
