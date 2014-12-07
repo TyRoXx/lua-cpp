@@ -108,14 +108,21 @@ namespace lua
 	struct any_local : pushable
 	{
 		any_local() BOOST_NOEXCEPT
-			: m_from_bottom(-1)
+			: m_thread(nullptr)
+			, m_from_bottom(-1)
 		{
 		}
 
-		explicit any_local(int from_bottom) BOOST_NOEXCEPT
-			: m_from_bottom(from_bottom)
+		explicit any_local(lua_State &thread, int from_bottom) BOOST_NOEXCEPT
+			: m_thread(&thread)
+			, m_from_bottom(from_bottom)
 		{
 			assert(m_from_bottom >= 1);
+		}
+
+		lua_State *thread() const BOOST_NOEXCEPT
+		{
+			return m_thread;
 		}
 
 		int from_bottom() const BOOST_NOEXCEPT
@@ -126,20 +133,31 @@ namespace lua
 		void swap(any_local &other) BOOST_NOEXCEPT
 		{
 			using boost::swap;
+			swap(m_thread, other.m_thread);
 			swap(m_from_bottom, other.m_from_bottom);
 		}
 
 		virtual void push(lua_State &L) const SILICIUM_OVERRIDE
 		{
 			assert(m_from_bottom >= 1);
-			lua_pushvalue(&L, m_from_bottom);
+			if (&L == m_thread)
+			{
+				lua_pushvalue(&L, m_from_bottom);
+			}
+			else
+			{
+				lua_pushvalue(m_thread, m_from_bottom);
+				lua_xmove(m_thread, &L, 1);
+			}
 		}
 
 	private:
 
+		lua_State *m_thread;
 		int m_from_bottom;
 	};
 
+#if 0
 	struct array
 	{
 		array(int begin, int length) BOOST_NOEXCEPT
@@ -169,6 +187,7 @@ namespace lua
 		int m_begin;
 		int m_length;
 	};
+#endif
 
 	template <type Type>
 	struct typed_local : any_local

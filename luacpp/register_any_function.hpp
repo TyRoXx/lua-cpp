@@ -9,6 +9,23 @@
 
 namespace lua
 {
+	struct current_thread
+	{
+		lua_State *L;
+		bool *suspend_requested;
+	};
+
+	inline boost::optional<coroutine> pin_coroutine(lua_State &main_thread, current_thread potential_child_thread)
+	{
+		int rc = lua_pushthread(potential_child_thread.L);
+		stack_value thread_on_stack(*potential_child_thread.L, lua_gettop(potential_child_thread.L));
+		if (rc == 1)
+		{
+			return boost::none;
+		}
+		return coroutine(create_reference(main_thread, xmover{&thread_on_stack}), potential_child_thread.suspend_requested);
+	}
+
 	namespace detail
 	{
 		struct call_environment
@@ -34,13 +51,13 @@ namespace lua
 		};
 
 		template <>
-		struct argument_converter<coroutine>
+		struct argument_converter<current_thread>
 		{
 			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = false;
 
-			coroutine operator()(call_environment const &env, int) const
+			current_thread operator()(call_environment const &env, int) const
 			{
-				return coroutine(env.L, env.suspend_requested);
+				return current_thread{&env.L, env.suspend_requested};
 			}
 		};
 
@@ -60,9 +77,9 @@ namespace lua
 		{
 			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = true;
 
-			any_local operator()(call_environment const &, int address) const
+			any_local operator()(call_environment const &env, int address) const
 			{
-				return any_local(address);
+				return any_local(env.L, address);
 			}
 		};
 

@@ -18,6 +18,7 @@ namespace lua
 			: m_state(&state)
 			, m_key(key)
 		{
+			assert((lua_pushthread(&state) == 1 && [&state]() { lua_pop(&state, 1); return true; }()));
 		}
 
 		reference(reference &&other) BOOST_NOEXCEPT
@@ -62,6 +63,11 @@ namespace lua
 		virtual void push(lua_State &L) const SILICIUM_OVERRIDE
 		{
 			lua_rawgeti(&L, LUA_REGISTRYINDEX, m_key);
+		}
+
+		type get_type() const
+		{
+			return to_stack_value(*m_state).get_type();
 		}
 
 	private:

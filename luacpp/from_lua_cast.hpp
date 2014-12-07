@@ -85,7 +85,7 @@ namespace lua
 	{
 		reference operator()(lua_State &L, int address) const
 		{
-			return create_reference(L, any_local(address));
+			return create_reference(L, any_local(L, address));
 		}
 	};
 

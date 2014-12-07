@@ -16,6 +16,7 @@ namespace lua
 			: m_handler(handler)
 			, m_state(&state)
 		{
+			assert(handler.get_type() == type::user_data);
 		}
 
 		error_type append(Si::iterator_range<element_type const *> data)

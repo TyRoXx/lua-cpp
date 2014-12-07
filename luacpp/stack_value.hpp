@@ -19,14 +19,12 @@ namespace lua
 	struct basic_stack_value : private Size, public any_local
 	{
 		basic_stack_value() BOOST_NOEXCEPT
-			: m_state(nullptr)
 		{
 		}
 
 		basic_stack_value(lua_State &state, int address, Size size = Size()) BOOST_NOEXCEPT
 			: Size(size)
-			, any_local(address)
-			, m_state(&state)
+			, any_local(state, address)
 #ifndef NDEBUG
 			, m_initial_top(lua_gettop(&state))
 #endif
@@ -38,12 +36,11 @@ namespace lua
 		basic_stack_value(basic_stack_value &&other) BOOST_NOEXCEPT
 			: Size(std::move(other))
 			, any_local(std::move(other))
-			, m_state(other.m_state)
 #ifndef NDEBUG
 			, m_initial_top(other.m_initial_top)
 #endif
 		{
-			other.m_state = nullptr;
+			static_cast<any_local &>(other) = any_local();
 		}
 
 		basic_stack_value &operator = (basic_stack_value &&other) BOOST_NOEXCEPT
@@ -51,7 +48,6 @@ namespace lua
 			using boost::swap;
 			swap(static_cast<Size &>(*this), static_cast<Size &>(other));
 			swap(static_cast<any_local &>(*this), static_cast<any_local &>(other));
-			swap(m_state, other.m_state);
 #ifndef NDEBUG
 			swap(m_initial_top, other.m_initial_top);
 #endif
@@ -60,22 +56,22 @@ namespace lua
 
 		~basic_stack_value() BOOST_NOEXCEPT
 		{
-			if (!m_state)
+			if (!thread())
 			{
 				return;
 			}
 #ifndef NDEBUG
-			int current_top = lua_gettop(m_state);
+			int current_top = lua_gettop(thread());
 #endif
 			assert(current_top == m_initial_top);
-			lua_pop(m_state, Size::value);
-			assert(lua_gettop(m_state) == (m_initial_top - Size::value));
+			lua_pop(thread(), Size::value);
+			assert(lua_gettop(thread()) == (m_initial_top - Size::value));
 		}
 
 		void release() BOOST_NOEXCEPT
 		{
-			assert(m_state);
-			m_state = nullptr;
+			assert(thread());
+			static_cast<any_local &>(*this) = any_local();
 		}
 
 		int size() const BOOST_NOEXCEPT
@@ -83,35 +79,29 @@ namespace lua
 			return Size::value;
 		}
 
-		lua_State *state() const BOOST_NOEXCEPT
-		{
-			return m_state;
-		}
-
 		lua::type get_type() const BOOST_NOEXCEPT
 		{
-			return static_cast<lua::type>(lua_type(m_state, from_bottom()));
+			return static_cast<lua::type>(lua_type(thread(), from_bottom()));
 		}
 
 		void assert_top() const
 		{
-			assert(m_state);
-			assert(lua_gettop(m_state) == from_bottom());
+			assert(thread());
+			assert(lua_gettop(thread()) == from_bottom());
 		}
 
 		template <class Pushable>
 		basic_stack_value<std::integral_constant<int, 1>> operator[](Pushable &&index)
 		{
 			using lua::push;
-			assert(m_state);
-			push(*m_state, std::forward<Pushable>(index));
-			lua_gettable(m_state, from_bottom());
-			return basic_stack_value<std::integral_constant<int, 1>>(*m_state, lua_gettop(m_state));
+			assert(thread());
+			push(*thread(), std::forward<Pushable>(index));
+			lua_gettable(thread(), from_bottom());
+			return basic_stack_value<std::integral_constant<int, 1>>(*thread(), lua_gettop(thread()));
 		}
 
 	private:
 
-		lua_State *m_state;
 #ifndef NDEBUG
 		int m_initial_top;
 #endif
@@ -125,10 +115,10 @@ namespace lua
 
 	inline void replace(stack_value &replacement, stack_value &replaced)
 	{
-		assert(replacement.state());
-		assert(replacement.state() == replaced.state());
+		assert(replacement.thread());
+		assert(replacement.thread() == replaced.thread());
 		replacement.assert_top();
-		lua_replace(replacement.state(), replaced.from_bottom());
+		lua_replace(replacement.thread(), replaced.from_bottom());
 		replacement.release();
 		replacement = std::move(replaced);
 	}
@@ -137,17 +127,27 @@ namespace lua
 	any_local at(basic_stack_value<Size> const &array, int index)
 	{
 		assert(index < array.size());
-		return any_local(array.from_bottom() + index);
+		return any_local(*array.thread(), array.from_bottom() + index);
 	}
 
 	inline void push(lua_State &L, stack_value const &value)
 	{
-		lua_pushvalue(&L, value.from_bottom());
+		if (&L == value.thread())
+		{
+			lua_pushvalue(&L, value.from_bottom());
+		}
+		else
+		{
+			using lua::push;
+			push(*value.thread(), value);
+			lua_xmove(value.thread(), &L, 1);
+		}
 	}
 
 	inline void push(lua_State &L, stack_value &&value)
 	{
-		if (value.from_bottom() == lua_gettop(&L))
+		if (&L == value.thread() &&
+			value.from_bottom() == lua_gettop(&L))
 		{
 			value.release();
 		}
@@ -164,9 +164,11 @@ namespace lua
 
 	inline void push(lua_State &L, xmover const &value)
 	{
+		assert(value.from);
+		assert(&L != value.from->thread());
 		using lua::push;
-		push(*value.from->state(), *value.from);
-		lua_xmove(value.from->state(), &L, 1);
+		push(*value.from->thread(), *value.from);
+		lua_xmove(value.from->thread(), &L, 1);
 	}
 }
 

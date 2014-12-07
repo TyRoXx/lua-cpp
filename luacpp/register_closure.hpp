@@ -68,7 +68,7 @@ namespace lua
 		typedef typename std::decay<Function>::type clean_function;
 		stack_value data = s.create_user_data(sizeof(f));
 		{
-			clean_function * const f_stored = static_cast<clean_function *>(s.to_user_data(any_local(data.from_bottom())));
+			clean_function * const f_stored = static_cast<clean_function *>(s.to_user_data(data));
 			assert(f_stored);
 			new (f_stored) clean_function{std::forward<Function>(f)};
 			std::unique_ptr<clean_function, detail::placement_destructor> f_stored_handle(f_stored);
@@ -77,9 +77,9 @@ namespace lua
 				//TODO: cache metatable
 				{
 					stack_value destructor = s.register_function(detail::delete_function<clean_function>);
-					s.set_element(any_local(meta_table.from_bottom()), "__gc", destructor);
+					s.set_element(meta_table, "__gc", destructor);
 				}
-				s.set_meta_table(any_local(data.from_bottom()), meta_table);
+				s.set_meta_table(data, meta_table);
 			}
 			f_stored_handle.release();
 		}

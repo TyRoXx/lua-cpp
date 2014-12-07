@@ -264,7 +264,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			static_cast<void *>(&s)
 		};
 		lua::stack_value result = s.call(registered, Si::make_container_source(arguments), std::integral_constant<int, 1>());
-		boost::optional<Si::noexcept_string> str_result = s.get_string(lua::any_local(result.from_bottom()));
+		boost::optional<Si::noexcept_string> str_result = s.get_string(result);
 		BOOST_CHECK_EQUAL(boost::make_optional(Si::noexcept_string("it works")), str_result);
 	});
 }
@@ -283,7 +283,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_no_ar
 			called = true;
 		});
 		lua::stack_value result = s.call(registered, lua::no_arguments(), std::integral_constant<int, 1>());
-		BOOST_CHECK_EQUAL(lua::type::nil, s.get_type(lua::any_local(result.from_bottom())));
+		BOOST_CHECK_EQUAL(lua::type::nil, s.get_type(result));
 		BOOST_CHECK(called);
 	});
 }
@@ -302,7 +302,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_mutab
 			called = true;
 		});
 		lua::stack_value result = s.call(registered, lua::no_arguments(), std::integral_constant<int, 1>());
-		BOOST_CHECK_EQUAL(lua::type::nil, s.get_type(lua::any_local(result.from_bottom())));
+		BOOST_CHECK_EQUAL(lua::type::nil, s.get_type(result));
 		BOOST_CHECK(called);
 	});
 }
@@ -392,14 +392,24 @@ namespace
 {
 	struct yielder
 	{
-		void operator()(lua::coroutine coro)
+		lua_State *main_thread;
+
+		explicit yielder(lua_State &main_thread)
+			: main_thread(&main_thread)
 		{
-			coro.suspend();
 		}
 
-		void yield(lua::coroutine coro)
+		void operator()(lua::current_thread thread)
 		{
-			coro.suspend();
+			return yield(thread);
+		}
+
+		void yield(lua::current_thread thread)
+		{
+			assert(main_thread);
+			boost::optional<lua::coroutine> coro = lua::pin_coroutine(*main_thread, thread);
+			BOOST_REQUIRE(coro);
+			coro->suspend();
 		}
 	};
 }
@@ -412,7 +422,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yielding_method)
 		lua::stack coro_stack(coro.thread());
 		lua::stack_value meta = lua::create_default_meta_table<yielder>(coro_stack);
 		lua::add_method(coro_stack, meta, "__call", &yielder::operator ());
-		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta);
+		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, *s.state());
 		lua::replace(object, meta);
 		lua::stack::resume_result result = coro_stack.resume(std::move(object), lua::no_arguments());
 		BOOST_CHECK(nullptr != Si::try_get_ptr<lua::stack::yield>(result));
@@ -437,7 +447,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 
 		lua::stack_value meta = lua::create_default_meta_table<yielder>(coro_stack);
 		lua::add_method(coro_stack, meta, "yield", &yielder::yield);
-		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta);
+		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, *s.state());
 		lua::replace(object, meta);
 		BOOST_REQUIRE_EQUAL(lua::type::user_data, coro_stack.get_type(object));
 

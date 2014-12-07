@@ -21,8 +21,9 @@ namespace
 {
 	struct tcp_client : private Si::observer<boost::system::error_code>
 	{
-		explicit tcp_client(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
-			: m_socket(std::move(socket))
+		explicit tcp_client(lua_State &main_thread, std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+			: m_main_thread(&main_thread)
+			, m_socket(std::move(socket))
 			, m_sender(Si::asio::make_writing_observable(*m_socket, Si::erase_unique(Si::make_generator_observable([this]() -> Si::memory_range
 			{
 				return Si::make_memory_range(m_send_buffer);
@@ -36,15 +37,23 @@ namespace
 			m_send_buffer.push_back(static_cast<char>(element));
 		}
 
-		void flush(lua::coroutine coro)
+		void flush(lua::current_thread thread)
 		{
+			assert(m_main_thread);
+			boost::optional<lua::coroutine> coro = lua::pin_coroutine(*m_main_thread, thread);
+			if (!coro)
+			{
+				std::terminate(); //TODO
+				return;
+			}
 			m_sender.async_get_one(*this);
-			coro.suspend();
-			m_coro = std::move(coro);
+			m_coro = std::move(*coro);
+			m_coro.suspend();
 		}
 
 	private:
 
+		lua_State *m_main_thread;
 		std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
 		Si::noexcept_string m_send_buffer;
 		Si::asio::writing_observable<boost::asio::ip::tcp::socket, Si::unique_observable<Si::memory_range>> m_sender;
@@ -78,25 +87,33 @@ namespace
 
 	struct tcp_acceptor : private Si::observer<Si::asio::tcp_acceptor_result>
 	{
-		explicit tcp_acceptor(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
-			: m_acceptor(io, endpoint)
+		explicit tcp_acceptor(lua_State &main_thread, boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
+			: m_main_thread(&main_thread)
+			, m_acceptor(io, endpoint)
 			, m_incoming_clients(m_acceptor)
 		{
 		}
 
-		void sync_get(lua::coroutine coro)
+		void sync_get(lua::current_thread thread)
 		{
+			boost::optional<lua::coroutine> coro = lua::pin_coroutine(*m_main_thread, thread);
+			if (!coro)
+			{
+				std::terminate(); //TODO
+				return;
+			}
 			m_waiting = true;
 			m_incoming_clients.async_get_one(static_cast<Si::observer<Si::asio::tcp_acceptor_result> &>(*this));
 			if (m_waiting)
 			{
-				m_suspended = std::move(coro);
+				m_suspended = std::move(*coro);
 				return m_suspended->suspend();
 			}
 		}
 
 	private:
 
+		lua_State *m_main_thread;
 		boost::asio::ip::tcp::acceptor m_acceptor;
 		Si::asio::tcp_acceptor m_incoming_clients;
 		bool m_waiting;
@@ -132,7 +149,7 @@ namespace
 			assert(child_stack.size() == 1);
 			assert(child_stack.get_type(meta) == lua::type::table);
 
-			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, meta, incoming.get());
+			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, meta, *m_main_thread, incoming.get());
 			replace(client, meta);
 
 			assert(lua_gettop(child_stack.state()) == 1);
@@ -152,6 +169,7 @@ namespace
 		explicit http_response_generator(lua::reference sink)
 			: m_sink(std::move(sink))
 		{
+			assert(m_sink.get_type() == lua::type::user_data);
 		}
 
 		void status_line(Si::memory_range status, Si::memory_range status_text, Si::memory_range version, lua_State &state)
@@ -179,6 +197,7 @@ namespace
 	};
 
 	lua::stack_value require_package(
+		lua_State &main_thread,
 		lua::stack &stack,
 		boost::asio::io_service &io,
 		Si::noexcept_string const &name,
@@ -190,9 +209,9 @@ namespace
 			stack.set_element(
 				module,
 				"create_acceptor",
-				[&stack, &io](lua_State &)
+				[&main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [&stack, &io](lua_Integer port)
+				return lua::register_any_function(stack, [&main_thread, &stack, &io](lua_Integer port)
 				{
 					boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
 					return lua::emplace_object< ::tcp_acceptor>(stack, [&stack](lua_State &)
@@ -200,7 +219,7 @@ namespace
 						lua::stack_value meta = lua::create_default_meta_table< ::tcp_acceptor>(stack);
 						add_method(stack, meta, "sync_get", &tcp_acceptor::sync_get);
 						return meta;
-					}, io, endpoint);
+					}, main_thread, io, endpoint);
 				});
 			});
 			module.assert_top();
@@ -212,15 +231,19 @@ namespace
 			stack.set_element(
 				module,
 				"make_response_generator",
-				[&stack, &io](lua_State &)
+				[&main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [&stack, &io](lua::any_local const &sink)
+				return lua::register_any_function(stack, [&main_thread, &stack, &io](lua::any_local const &sink)
 				{
 					lua::stack_value meta = lua::create_default_meta_table<http_response_generator>(stack);
 					lua::add_method(stack, meta, "status_line", &http_response_generator::status_line);
 					lua::add_method(stack, meta, "header", &http_response_generator::header);
 					lua::add_method(stack, meta, "content", &http_response_generator::content);
-					lua::stack_value generator = lua::emplace_object<http_response_generator>(stack, meta, lua::create_reference(*stack.state(), sink));
+
+					lua::reference sink_kept_alive = lua::create_reference(main_thread, sink);
+					assert(sink_kept_alive.get_type() == lua::type::user_data);
+
+					lua::stack_value generator = lua::emplace_object<http_response_generator>(stack, meta, std::move(sink_kept_alive));
 					lua::replace(generator, meta);
 					return generator;
 				});
@@ -296,7 +319,7 @@ int main(int argc, char **argv)
 	std::pair<lua::error, lua::stack_value> first_level = stack.load_file(parsed_options->program);
 	if (first_level.first != lua::error::success)
 	{
-		std::cerr << stack.to_string(lua::any_local(first_level.second.from_bottom())) << '\n';
+		std::cerr << stack.to_string(first_level.second) << '\n';
 		return 1;
 	}
 
@@ -305,13 +328,14 @@ int main(int argc, char **argv)
 		lua::stack_value second_level = stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
 		lua::coroutine runner = lua::create_coroutine(*stack.state());
 		lua::stack runner_stack(runner.thread());
+		lua_State &main_thread = *state;
 		lua::stack::resume_result resumed = runner_stack.resume(
 			lua::xmove(std::move(second_level), runner.thread()),
-			Si::make_oneshot_generator_source([&runner_stack, &io]()
+			Si::make_oneshot_generator_source([&main_thread, &runner_stack, &io]()
 		{
-			return lua::register_any_function(runner_stack, [&runner_stack, &io](Si::noexcept_string const &name, Si::noexcept_string const &version)
+			return lua::register_any_function(runner_stack, [&main_thread, &runner_stack, &io](Si::noexcept_string const &name, Si::noexcept_string const &version)
 			{
-				return require_package(runner_stack, io, name, version);
+				return require_package(main_thread, runner_stack, io, name, version);
 			});
 		}));
 		assert(Si::try_get_ptr<lua::stack::yield>(resumed));

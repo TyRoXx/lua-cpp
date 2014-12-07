@@ -14,14 +14,14 @@ namespace lua
 		{
 		}
 
-		explicit coroutine(lua_State &thread, bool *suspend_requested)
-			: m_thread(&thread)
+		explicit coroutine(reference thread, bool *suspend_requested)
+			: m_life(std::move(thread))
 			, m_suspend_requested(suspend_requested)
 		{
-			int rc = lua_pushthread(&thread);
-			assert((rc != 1) && "you cannot construct a coroutine handle from the Lua main thread");
-			boost::ignore_unused_variable_warning(rc);
-			m_life = create_reference(thread, stack_value(thread, lua_gettop(&thread)));
+			thread.push(*m_life.state());
+			m_thread = lua_tothread(m_life.state(), -1);
+			assert(m_thread);
+			lua_pop(m_life.state(), 1);
 		}
 
 		lua_State &thread() const
@@ -65,14 +65,14 @@ namespace lua
 
 	inline coroutine create_coroutine(lua_State &main_thread)
 	{
-		lua_State * const thread = lua_newthread(&main_thread);
-		stack_value discarded(main_thread, lua_gettop(&main_thread));
-		return coroutine(*thread, nullptr);
+		lua_newthread(&main_thread);
+		stack_value thread_on_stack(main_thread, lua_gettop(&main_thread));
+		return coroutine(create_reference(main_thread, thread_on_stack), nullptr);
 	}
 
 	inline stack_value xmove(stack_value from, lua_State &to)
 	{
-		lua_xmove(from.state(), &to, 1);
+		lua_xmove(from.thread(), &to, 1);
 		from.release();
 		return stack_value(to, lua_gettop(&to));
 	}
