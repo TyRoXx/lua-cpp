@@ -2,6 +2,7 @@
 #include "luacpp/meta_table.hpp"
 #include "luacpp/sink_into_lua.hpp"
 #include "luacpp/pcall.hpp"
+#include "luacpp/sink_from_lua.hpp"
 #include <silicium/asio/tcp_acceptor.hpp>
 #include <silicium/asio/writing_observable.hpp>
 #include <silicium/observable/end.hpp>
@@ -145,35 +146,6 @@ namespace
 			SILICIUM_UNREACHABLE();
 		}
 	};
-
-	template <class Sink>
-	struct sink_from_lua
-	{
-		explicit sink_from_lua(Sink original)
-			: m_original(std::move(original))
-		{
-		}
-
-		void append(lua::any_local elements, lua_State &L)
-		{
-			typedef typename Sink::element_type element_type;
-			auto element = lua::from_lua_cast<element_type>(L, elements.from_bottom());
-			Si::success success_expected = m_original.append(Si::make_iterator_range(&element, &element + 1));
-			boost::ignore_unused_variable_warning(success_expected);
-		}
-
-	private:
-
-		Sink m_original;
-	};
-
-	template <class Sink>
-	lua::stack_value create_sink_wrapper_meta_table(lua::stack &stack)
-	{
-		lua::stack_value table = lua::create_default_meta_table<sink_from_lua<Sink>>(stack);
-		lua::add_method(stack, table, "append", &sink_from_lua<Sink>::append);
-		return table;
-	}
 
 	struct http_response_generator
 	{
