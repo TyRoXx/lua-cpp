@@ -230,39 +230,55 @@ namespace
 		}
 		return stack.push_nil();
 	}
+
+	struct options
+	{
+		std::string program;
+	};
+
+	boost::optional<options> parse_options(int argc, char **argv)
+	{
+		options parsed;
+
+		boost::program_options::options_description desc("Allowed options");
+		desc.add_options()
+		    ("help", "produce help message")
+			("program", boost::program_options::value(&parsed.program), "the Lua code file to execute")
+		;
+
+		boost::program_options::positional_options_description positional;
+		positional.add("program", 1);
+		boost::program_options::variables_map vm;
+		try
+		{
+			boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).positional(positional).run(), vm);
+		}
+		catch (boost::program_options::error const &ex)
+		{
+			std::cerr
+				<< ex.what() << '\n'
+				<< desc << "\n";
+			return boost::none;
+		}
+
+		boost::program_options::notify(vm);
+
+		if (vm.count("help"))
+		{
+		    std::cerr << desc << "\n";
+		    return boost::none;
+		}
+
+		return parsed;
+	}
 }
 
 int main(int argc, char **argv)
 {
-	std::string program;
-
-	boost::program_options::options_description desc("Allowed options");
-	desc.add_options()
-	    ("help", "produce help message")
-		("program", boost::program_options::value(&program), "the Lua code file to execute")
-	;
-
-	boost::program_options::positional_options_description positional;
-	positional.add("program", 1);
-	boost::program_options::variables_map vm;
-	try
+	boost::optional<options> parsed_options = parse_options(argc, argv);
+	if (!parsed_options)
 	{
-		boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).positional(positional).run(), vm);
-	}
-	catch (boost::program_options::error const &ex)
-	{
-		std::cerr
-			<< ex.what() << '\n'
-			<< desc << "\n";
 		return 1;
-	}
-
-	boost::program_options::notify(vm);
-
-	if (vm.count("help"))
-	{
-	    std::cerr << desc << "\n";
-	    return 1;
 	}
 
 	boost::asio::io_service io;
@@ -277,7 +293,7 @@ int main(int argc, char **argv)
 	luaopen_base(state.get());
 	luaopen_string(state.get());
 	lua::stack stack(*state);
-	std::pair<lua::error, lua::stack_value> first_level = stack.load_file(program);
+	std::pair<lua::error, lua::stack_value> first_level = stack.load_file(parsed_options->program);
 	if (first_level.first != lua::error::success)
 	{
 		std::cerr << stack.to_string(lua::any_local(first_level.second.from_bottom())) << '\n';
