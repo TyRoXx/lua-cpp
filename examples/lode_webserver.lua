@@ -14,7 +14,7 @@ return function (require)
 	local visitor_count = 0
 	local clients = tcp.create_acceptor(8080)
 	sync_for_each(clients, function (client)
-		--coroutine.resume(coroutine.create(function ()
+		coroutine.resume(coroutine.create(function ()
 		--	local request = http.parse_request(client:receiver())
 		--	if request == nil then
 		--		-- respond with bad request or sth
@@ -28,6 +28,6 @@ return function (require)
 			visitor_count = visitor_count + 1
 			response:content("Hello, world!<br>Visitor number: " .. tostring(visitor_count))
 			sender:flush()
-		--end))
+		end))
 	end)
 end
