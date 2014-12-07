@@ -37,6 +37,7 @@ namespace lua
 			}
 			if (yielding)
 			{
+				assert(lua_gettop(L) == 0);
 				return lua_yield(L, 0);
 			}
 			return result;
