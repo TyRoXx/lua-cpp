@@ -20,6 +20,8 @@ namespace lua
 		template <class T>
 		struct argument_converter
 		{
+			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = true;
+
 			T operator()(call_environment const &env, int address) const
 			{
 				return from_lua_cast<T>(env.L, address);
@@ -34,11 +36,53 @@ namespace lua
 		template <>
 		struct argument_converter<coroutine>
 		{
+			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = false;
+
 			coroutine operator()(call_environment const &env, int) const
 			{
 				return coroutine(env.L, env.suspend_requested);
 			}
 		};
+
+		template <>
+		struct argument_converter<lua_State &>
+		{
+			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = false;
+
+			lua_State &operator()(call_environment const &env, int) const
+			{
+				return env.L;
+			}
+		};
+
+		template <>
+		struct argument_converter<any_local>
+		{
+			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = true;
+
+			any_local operator()(call_environment const &, int address) const
+			{
+				return any_local(address);
+			}
+		};
+
+		template <class ...Arguments>
+		struct argument_count_on_stack;
+
+		template <class First, class ...Rest>
+		struct argument_count_on_stack<First, Rest...> : std::integral_constant<int, argument_converter<First>::consumes_stack + argument_count_on_stack<Rest...>::value>
+		{
+		};
+
+		template <>
+		struct argument_count_on_stack<> : std::integral_constant<int, 0>
+		{
+		};
+
+		BOOST_STATIC_ASSERT(argument_count_on_stack<>::value == 0);
+		BOOST_STATIC_ASSERT(argument_count_on_stack<void *>::value == 1);
+		BOOST_STATIC_ASSERT(argument_count_on_stack<void *, lua_State &>::value == 1);
+		BOOST_STATIC_ASSERT(argument_count_on_stack<void *, lua_Integer>::value == 2);
 
 		template <class ...Parameters, std::size_t ...Indices, class Function>
 		auto call_with_converted_arguments(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>)
@@ -49,18 +93,12 @@ namespace lua
 		template <class NonVoid>
 		struct caller
 		{
-			template <class F, class ...Arguments>
-			result_or_yield operator()(call_environment const &env, F const &f, Arguments &&...args) const
+			template <class F>
+			result_or_yield operator()(call_environment const &env, F const &f) const
 			{
 				assert(!env.suspend_requested || !*env.suspend_requested); //TODO
-				NonVoid result = f(std::forward<Arguments>(args)...);
+				NonVoid result = f();
 				push(env.L, std::move(result));
-				if (sizeof...(Arguments))
-				{
-					int const top = lua_gettop(&env.L);
-					lua_replace(&env.L, (top - sizeof...(Arguments)));
-					lua_pop(&env.L, (sizeof...(Arguments) - 1));
-				}
 				return 1;
 			}
 		};
@@ -68,11 +106,10 @@ namespace lua
 		template <>
 		struct caller<void>
 		{
-			template <class F, class ...Arguments>
-			result_or_yield operator()(call_environment const &env, F const &f, Arguments &&...args) const
+			template <class F>
+			result_or_yield operator()(call_environment const &env, F const &f) const
 			{
-				f(std::forward<Arguments>(args)...);
-				lua_pop(&env.L, static_cast<int>(sizeof...(Arguments)));
+				f();
 				if (env.suspend_requested && *env.suspend_requested)
 				{
 					return yield();
