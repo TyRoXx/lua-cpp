@@ -84,9 +84,28 @@ namespace
 		}
 	};
 
+	inline lua::stack_value create_tcp_client_meta_table(lua::stack &s)
+	{
+		lua::stack_value meta = lua::create_default_meta_table<tcp_client>(s);
+		assert(s.size() == 1);
+		assert(s.get_type(meta) == lua::type::table);
+
+		add_method(s, meta, "append", &tcp_client::append);
+		assert(s.size() == 1);
+		assert(s.get_type(meta) == lua::type::table);
+
+		lua::add_method(s, meta, "flush", &tcp_client::flush);
+		assert(s.size() == 1);
+		assert(s.get_type(meta) == lua::type::table);
+		return meta;
+	}
+
 	struct tcp_acceptor : private Si::observer<Si::asio::tcp_acceptor_result>
 	{
-		explicit tcp_acceptor(lua::main_thread main_thread, boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
+		explicit tcp_acceptor(
+			lua::main_thread main_thread,
+			boost::asio::io_service &io,
+			boost::asio::ip::tcp::endpoint endpoint)
 			: m_main_thread(main_thread)
 			, m_acceptor(io, endpoint)
 			, m_incoming_clients(m_acceptor)
@@ -117,6 +136,7 @@ namespace
 		Si::asio::tcp_acceptor m_incoming_clients;
 		bool m_waiting;
 		boost::optional<lua::coroutine> m_suspended;
+		lua::reference m_cached_client_meta_table;
 
 		virtual void got_element(Si::asio::tcp_acceptor_result incoming) SILICIUM_OVERRIDE
 		{
@@ -133,23 +153,13 @@ namespace
 
 			lua::coroutine child_coro = *std::move(Si::exchange(m_suspended, boost::none));
 			lua::stack child_stack(child_coro.thread());
-
 			assert(child_stack.size() == 0);
 
-			lua::stack_value meta = lua::create_default_meta_table<tcp_client>(child_stack);
-			assert(child_stack.size() == 1);
-			assert(child_stack.get_type(meta) == lua::type::table);
-
-			add_method(child_stack, meta, "append", &tcp_client::append);
-			assert(child_stack.size() == 1);
-			assert(child_stack.get_type(meta) == lua::type::table);
-
-			lua::add_method(child_stack, meta, "flush", &tcp_client::flush);
-			assert(child_stack.size() == 1);
-			assert(child_stack.get_type(meta) == lua::type::table);
-
-			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, meta, m_main_thread, incoming.get());
-			replace(client, meta);
+			if (m_cached_client_meta_table.empty())
+			{
+				m_cached_client_meta_table = lua::create_reference(m_main_thread, create_tcp_client_meta_table(child_stack));
+			}
+			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, m_cached_client_meta_table, m_main_thread, incoming.get());
 
 			assert(lua_gettop(child_stack.state()) == 1);
 			client.release();
