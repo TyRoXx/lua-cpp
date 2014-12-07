@@ -84,21 +84,21 @@ namespace lua
 		BOOST_STATIC_ASSERT(argument_count_on_stack<void *, lua_State &>::value == 1);
 		BOOST_STATIC_ASSERT(argument_count_on_stack<void *, lua_Integer>::value == 2);
 
-		template <class ...Parameters, std::size_t ...Indices, class Function>
-		auto call_with_converted_arguments(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>)
-		{
-			return func(argument_converter<Parameters>()(env, 1 + Indices)...);
-		}
-
 		template <class NonVoid>
 		struct caller
 		{
-			template <class F>
-			result_or_yield operator()(call_environment const &env, F const &f) const
+			template <class ...Parameters, std::size_t ...Indices, class Function>
+			result_or_yield call(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>) const
 			{
 				assert(!env.suspend_requested || !*env.suspend_requested); //TODO
-				NonVoid result = f();
+				NonVoid result = func(argument_converter<Parameters>()(env, 1 + Indices)...);
 				push(env.L, std::move(result));
+				int arguments_on_stack = argument_count_on_stack<Parameters...>::value;
+				if (arguments_on_stack)
+				{
+					lua_replace(&env.L, 1);
+					lua_pop(&env.L, arguments_on_stack - 1);
+				}
 				return 1;
 			}
 		};
@@ -106,10 +106,15 @@ namespace lua
 		template <>
 		struct caller<void>
 		{
-			template <class F>
-			result_or_yield operator()(call_environment const &env, F const &f) const
+			template <class ...Parameters, std::size_t ...Indices, class Function>
+			result_or_yield call(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>) const
 			{
-				f();
+				func(argument_converter<Parameters>()(env, 1 + Indices)...);
+				int arguments_on_stack = argument_count_on_stack<Parameters...>::value;
+				if (arguments_on_stack)
+				{
+					lua_pop(&env.L, arguments_on_stack);
+				}
 				if (env.suspend_requested && *env.suspend_requested)
 				{
 					return yield();
@@ -129,16 +134,7 @@ namespace lua
 			{
 				bool suspend_requested = false;
 				call_environment env{*L, &suspend_requested};
-				return caller<R>()(env, [
-#ifdef _MSC_VER
-					func, &env
-#else
-				&
-#endif
-				]()
-				{
-					return call_with_converted_arguments<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
-				});
+				return caller<R>().template call<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 			});
 		}
 
@@ -153,10 +149,7 @@ namespace lua
 			{
 				bool suspend_requested = false;
 				call_environment env{*L, &suspend_requested};
-				return caller<R>()(env, [&]()
-				{
-					return call_with_converted_arguments<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
-				});
+				return caller<R>().template call<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 			});
 		}
 	}

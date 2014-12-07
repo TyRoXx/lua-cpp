@@ -50,7 +50,6 @@ namespace lua
 			assert(raw_this);
 			return (raw_this->*method)(std::forward<Args>(args)...);
 		});
-		print_stack(std::cerr, *s.state());
 		assert(s.get_type(meta) == type::table);
 		assert(s.get_type(registered_method) == type::function);
 		s.set_element(
