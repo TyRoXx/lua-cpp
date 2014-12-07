@@ -17,71 +17,6 @@
 
 namespace
 {
-	struct response_writer : private Si::observer<boost::system::error_code>
-	{
-		explicit response_writer(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
-			: m_socket(std::move(socket))
-		{
-		}
-
-		void add_header(Si::noexcept_string const &key, Si::noexcept_string const &value)
-		{
-			auto sink = Si::make_container_sink(m_send_buffer);
-			if (m_send_buffer.empty())
-			{
-				Si::http::generate_status_line(sink, "HTTP/1.0", "200", "OK");
-			}
-			Si::http::generate_header(sink, key, value);
-		}
-
-		void set_content(Si::noexcept_string const &content, lua::coroutine coro)
-		{
-			add_header("Content-Length", boost::lexical_cast<Si::noexcept_string>(content.size()));
-			m_send_buffer.push_back('\r');
-			m_send_buffer.push_back('\n');
-			m_send_buffer.insert(m_send_buffer.end(), content.begin(), content.end());
-			return send(std::move(coro));
-		}
-
-	private:
-
-		typedef Si::asio::writing_observable<boost::asio::ip::tcp::socket, Si::constant_observable<Si::memory_range>> writer;
-
-		std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
-		std::vector<char> m_send_buffer;
-		writer m_writer;
-		lua::coroutine m_suspended;
-
-		void send(lua::coroutine coro)
-		{
-			assert(m_suspended.empty());
-			assert(!m_send_buffer.empty());
-			m_writer = writer(*m_socket, Si::make_constant_observable(Si::make_memory_range(m_send_buffer)));
-			m_writer.async_get_one(static_cast<Si::observer<boost::system::error_code> &>(*this));
-			m_suspended = std::move(coro);
-			return coro.suspend();
-		}
-
-		virtual void got_element(boost::system::error_code value) SILICIUM_OVERRIDE
-		{
-			assert(!m_suspended.empty());
-			auto coro = std::move(m_suspended);
-			coro.resume(0);
-
-			//ignore the request for now
-			boost::array<char, 1024> buffer;
-			boost::system::error_code ec;
-			m_socket->read_some(boost::asio::buffer(buffer), ec);
-
-			m_socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
-		}
-
-		virtual void ended() SILICIUM_OVERRIDE
-		{
-			SILICIUM_UNREACHABLE();
-		}
-	};
-
 	struct tcp_client : private Si::observer<boost::system::error_code>
 	{
 		explicit tcp_client(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
@@ -210,72 +145,6 @@ namespace
 		}
 	};
 
-	struct server : private Si::observer<Si::asio::tcp_acceptor_result>
-	{
-		explicit server(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
-			: m_acceptor(io, endpoint)
-			, m_incoming_clients(m_acceptor)
-		{
-		}
-
-		void sync_get(lua::coroutine coro)
-		{
-			m_waiting = true;
-			m_incoming_clients.async_get_one(static_cast<Si::observer<Si::asio::tcp_acceptor_result> &>(*this));
-			if (m_waiting)
-			{
-				m_suspended = std::move(coro);
-				return m_suspended->suspend();
-			}
-		}
-
-	private:
-
-		boost::asio::ip::tcp::acceptor m_acceptor;
-		Si::asio::tcp_acceptor m_incoming_clients;
-		bool m_waiting;
-		boost::optional<lua::coroutine> m_suspended;
-
-		virtual void got_element(Si::asio::tcp_acceptor_result incoming) SILICIUM_OVERRIDE
-		{
-			assert(m_waiting);
-			assert(m_suspended);
-			m_waiting = false;
-
-			if (incoming.is_error())
-			{
-				return Si::exchange(m_suspended, boost::none)->resume(1);
-			}
-
-			lua::coroutine &child_coro = *m_suspended;
-			lua::stack child_stack(child_coro.thread());
-
-			lua::stack_value meta = lua::create_default_meta_table<response_writer>(child_stack);
-			add_method(child_stack, meta, "add_header", &response_writer::add_header);
-			add_method(child_stack, meta, "set_content", &response_writer::set_content);
-			lua::stack_value response = lua::emplace_object<response_writer>(child_stack, meta, incoming.get());
-			replace(response, meta);
-
-			assert(lua_gettop(child_stack.state()) == 1);
-			response.release();
-			child_coro.resume(1);
-			assert(lua_gettop(child_stack.state()) == 0);
-		}
-
-		virtual void ended() SILICIUM_OVERRIDE
-		{
-			SILICIUM_UNREACHABLE();
-		}
-
-		void handle_client(Si::asio::tcp_acceptor_result client)
-		{
-			if (client.is_error())
-			{
-				return;
-			}
-		}
-	};
-
 	template <class T>
 	struct sink_into_lua
 	{
@@ -379,31 +248,7 @@ namespace
 		Si::noexcept_string const &name,
 		Si::noexcept_string const &version)
 	{
-		if (name == "web")
-		{
-			boost::ignore_unused_variable_warning(version);
-			lua::stack_value module = stack.create_table();
-			stack.set_element(
-				lua::any_local(module.from_bottom()),
-				"create_server",
-				[&stack, &io](lua_State &)
-				{
-					return register_any_function(stack, [&stack, &io](lua_Integer port)
-					{
-						boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
-						return lua::emplace_object< ::server>(stack, [&stack](lua_State &)
-						{
-							lua::stack_value meta = lua::create_default_meta_table< ::server>(stack);
-							add_method(stack, meta, "sync_get", &server::sync_get);
-							return meta;
-						}, io, endpoint);
-					});
-				}
-			);
-			module.assert_top();
-			return module;
-		}
-		else if (name == "tcp")
+		if (name == "tcp")
 		{
 			lua::stack_value module = stack.create_table();
 			stack.set_element(
