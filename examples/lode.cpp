@@ -151,15 +151,10 @@ namespace
 		typedef T element_type;
 		typedef Si::success error_type;
 
-		explicit sink_into_lua(lua::reference handler)
-			: m_handler(std::move(handler))
-			, m_state(nullptr)
+		explicit sink_into_lua(const lua::reference &handler, lua_State &state)
+			: m_handler(handler)
+			, m_state(&state)
 		{
-		}
-
-		void set_state(lua_State &state)
-		{
-			m_state = &state;
 		}
 
 		error_type append(Si::iterator_range<element_type const *> data)
@@ -178,7 +173,7 @@ namespace
 
 	private:
 
-		lua::reference m_handler;
+		const lua::reference &m_handler;
 		lua_State *m_state;
 	};
 
@@ -213,33 +208,33 @@ namespace
 
 	struct http_response_generator
 	{
-		explicit http_response_generator(sink_into_lua<char> sink)
+		explicit http_response_generator(lua::reference sink)
 			: m_sink(std::move(sink))
 		{
 		}
 
 		void status_line(Si::memory_range status, Si::memory_range status_text, Si::memory_range version, lua_State &state)
 		{
-			m_sink.set_state(state);
-			Si::http::generate_status_line(m_sink, version, status, status_text);
+			sink_into_lua<char> native_sink(m_sink, state);
+			Si::http::generate_status_line(native_sink, version, status, status_text);
 		}
 
 		void header(Si::memory_range key, Si::memory_range value, lua_State &state)
 		{
-			m_sink.set_state(state);
-			Si::http::generate_header(m_sink, key, value);
+			sink_into_lua<char> native_sink(m_sink, state);
+			Si::http::generate_header(native_sink, key, value);
 		}
 
 		void content(Si::memory_range content, lua_State &state)
 		{
-			m_sink.set_state(state);
-			Si::append(m_sink, "\r\n");
-			m_sink.append(content);
+			sink_into_lua<char> native_sink(m_sink, state);
+			Si::append(native_sink, "\r\n");
+			native_sink.append(content);
 		}
 
 	private:
 
-		sink_into_lua<char> m_sink;
+		lua::reference m_sink;
 	};
 
 	lua::stack_value require_package(
@@ -284,7 +279,7 @@ namespace
 					lua::add_method(stack, meta, "status_line", &http_response_generator::status_line);
 					lua::add_method(stack, meta, "header", &http_response_generator::header);
 					lua::add_method(stack, meta, "content", &http_response_generator::content);
-					lua::stack_value generator = lua::emplace_object<http_response_generator>(stack, meta, sink_into_lua<char>(lua::create_reference(*stack.state(), sink)));
+					lua::stack_value generator = lua::emplace_object<http_response_generator>(stack, meta, lua::create_reference(*stack.state(), sink));
 					lua::replace(generator, meta);
 					return generator;
 				});
