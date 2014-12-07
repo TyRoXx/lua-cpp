@@ -407,7 +407,7 @@ namespace
 		void yield(lua::current_thread thread)
 		{
 			assert(main_thread.get());
-			boost::optional<lua::coroutine> coro = lua::pin_coroutine(main_thread, thread);
+			Si::optional<lua::coroutine> coro = lua::pin_coroutine(main_thread, thread);
 			BOOST_REQUIRE(coro);
 			coro->suspend();
 		}

@@ -24,6 +24,21 @@ namespace lua
 			lua_pop(m_life.state(), 1);
 		}
 
+#if !SILICIUM_COMPILER_GENERATES_MOVES
+		coroutine(coroutine &&other) BOOST_NOEXCEPT
+			: m_thread(nullptr)
+			, m_suspend_requested(nullptr)
+		{
+			swap(other);
+		}
+
+		coroutine &operator = (coroutine &&other) BOOST_NOEXCEPT
+		{
+			swap(other);
+			return *this;
+		}
+#endif
+
 		lua_State &thread() const
 		{
 			assert(m_thread);
@@ -56,11 +71,24 @@ namespace lua
 			return m_thread == nullptr;
 		}
 
+		void swap(coroutine &other) BOOST_NOEXCEPT
+		{
+			using boost::swap;
+			swap(m_thread, other.m_thread);
+			swap(m_life, other.m_life);
+			swap(m_suspend_requested, other.m_suspend_requested);
+		}
+
 	private:
 
 		lua_State *m_thread;
 		reference m_life;
 		bool *m_suspend_requested;
+
+#if !SILICIUM_COMPILER_GENERATES_MOVES
+		SILICIUM_DELETED_FUNCTION(coroutine(coroutine const &))
+		SILICIUM_DELETED_FUNCTION(coroutine &operator = (coroutine const &))
+#endif
 	};
 
 	inline coroutine create_coroutine(main_thread thread)

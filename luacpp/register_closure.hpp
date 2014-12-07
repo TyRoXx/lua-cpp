@@ -57,13 +57,17 @@ namespace lua
 			template <class T>
 			void operator()(T *object) const BOOST_NOEXCEPT
 			{
+#ifdef _MSC_VER
+				//workaround for VC++ bug
+				boost::ignore_unused_variable_warning(object);
+#endif
 				object->~T();
 			}
 		};
 	}
 
 	template <class Function, class UpvalueSource>
-	auto register_closure(stack &s, Function &&f, UpvalueSource &&upvalues)
+	stack_value register_closure(stack &s, Function &&f, UpvalueSource &&upvalues)
 	{
 		typedef typename std::decay<Function>::type clean_function;
 		stack_value data = s.create_user_data(sizeof(f));

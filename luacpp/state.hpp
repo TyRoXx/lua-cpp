@@ -2,6 +2,7 @@
 #define LUACPP_STATE_HPP
 
 #include "luacpp/error.hpp"
+#include "luacpp/path.hpp"
 #include <memory>
 #include <silicium/config.hpp>
 #include <silicium/memory_range.hpp>
@@ -51,7 +52,7 @@ namespace lua
 
 	inline boost::system::error_code load_file(lua_State &L, boost::filesystem::path const &file)
 	{
-		int rc = luaL_loadfile(&L, file.c_str());
+		int rc = luaL_loadfile(&L, to_utf8(file).c_str());
 		if (rc != 0)
 		{
 			return boost::system::error_code(rc, get_lua_error_category());

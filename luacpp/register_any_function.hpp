@@ -6,6 +6,7 @@
 #include "luacpp/from_lua_cast.hpp"
 #include "luacpp/coroutine.hpp"
 #include <silicium/detail/integer_sequence.hpp>
+#include <silicium/optional.hpp>
 
 namespace lua
 {
@@ -15,13 +16,13 @@ namespace lua
 		bool *suspend_requested;
 	};
 
-	inline boost::optional<coroutine> pin_coroutine(main_thread thread, current_thread potential_child_thread)
+	inline Si::optional<coroutine> pin_coroutine(main_thread thread, current_thread potential_child_thread)
 	{
 		int rc = lua_pushthread(potential_child_thread.L);
 		stack_value thread_on_stack(*potential_child_thread.L, lua_gettop(potential_child_thread.L));
 		if (rc == 1)
 		{
-			return boost::none;
+			return Si::none;
 		}
 		return coroutine(create_reference(thread, xmover{&thread_on_stack}), potential_child_thread.suspend_requested);
 	}
@@ -30,7 +31,7 @@ namespace lua
 	{
 		struct call_environment
 		{
-			lua_State &L;
+			lua_State *L;
 			bool *suspend_requested;
 		};
 
@@ -41,7 +42,7 @@ namespace lua
 
 			T operator()(call_environment const &env, int address) const
 			{
-				return from_lua_cast<T>(env.L, address);
+				return from_lua_cast<T>(*env.L, address);
 			}
 		};
 
@@ -57,7 +58,7 @@ namespace lua
 
 			current_thread operator()(call_environment const &env, int) const
 			{
-				return current_thread{&env.L, env.suspend_requested};
+				return current_thread{env.L, env.suspend_requested};
 			}
 		};
 
@@ -68,7 +69,7 @@ namespace lua
 
 			lua_State &operator()(call_environment const &env, int) const
 			{
-				return env.L;
+				return *env.L;
 			}
 		};
 
@@ -79,7 +80,7 @@ namespace lua
 
 			any_local operator()(call_environment const &env, int address) const
 			{
-				return any_local(env.L, address);
+				return any_local(*env.L, address);
 			}
 		};
 
@@ -109,12 +110,12 @@ namespace lua
 			{
 				assert(!env.suspend_requested || !*env.suspend_requested); //TODO
 				NonVoid result = func(argument_converter<Parameters>()(env, 1 + Indices)...);
-				push(env.L, std::move(result));
+				push(*env.L, std::move(result));
 				int arguments_on_stack = argument_count_on_stack<Parameters...>::value;
 				if (arguments_on_stack)
 				{
-					lua_replace(&env.L, 1);
-					lua_pop(&env.L, arguments_on_stack - 1);
+					lua_replace(env.L, 1);
+					lua_pop(env.L, arguments_on_stack - 1);
 				}
 				return 1;
 			}
@@ -130,7 +131,7 @@ namespace lua
 				int arguments_on_stack = argument_count_on_stack<Parameters...>::value;
 				if (arguments_on_stack)
 				{
-					lua_pop(&env.L, arguments_on_stack);
+					lua_pop(env.L, arguments_on_stack);
 				}
 				if (env.suspend_requested && *env.suspend_requested)
 				{
@@ -150,7 +151,7 @@ namespace lua
 			](lua_State *L)
 			{
 				bool suspend_requested = false;
-				call_environment env{*L, &suspend_requested};
+				call_environment env{L, &suspend_requested};
 				return caller<R>().template call<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 			});
 		}
@@ -165,7 +166,7 @@ namespace lua
 			](lua_State *L) mutable
 			{
 				bool suspend_requested = false;
-				call_environment env{*L, &suspend_requested};
+				call_environment env{L, &suspend_requested};
 				return caller<R>().template call<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 			});
 		}

@@ -13,6 +13,7 @@
 #include <silicium/source/memory_source.hpp>
 #include <silicium/source/generator_source.hpp>
 #include <silicium/http/generate_response.hpp>
+#include <silicium/optional.hpp>
 #include <silicium/sink/iterator_sink.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
@@ -24,7 +25,14 @@ namespace
 		explicit tcp_client(lua::main_thread main_thread, std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 			: m_main_thread(main_thread)
 			, m_socket(std::move(socket))
-			, m_sender(Si::asio::make_writing_observable(*m_socket, Si::erase_unique(Si::make_generator_observable([this]() -> Si::memory_range
+			, m_sender(Si::asio::make_writing_observable(
+				*m_socket,
+#if _MSC_VER
+				Si::erase_shared
+#else
+				Si::erase_unique
+#endif
+				(Si::make_generator_observable([this]() -> Si::memory_range
 			{
 				return Si::make_memory_range(m_send_buffer);
 			}))))
@@ -55,7 +63,7 @@ namespace
 
 		void flush(lua::current_thread thread)
 		{
-			boost::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
+			Si::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
 			if (!coro)
 			{
 				std::terminate(); //TODO
@@ -71,7 +79,15 @@ namespace
 		lua::main_thread m_main_thread;
 		std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
 		Si::noexcept_string m_send_buffer;
-		Si::asio::writing_observable<boost::asio::ip::tcp::socket, Si::unique_observable<Si::memory_range>> m_sender;
+
+		typedef
+#ifdef _MSC_VER
+			Si::shared_observable
+#else
+			Si::unique_observable
+#endif
+			<Si::memory_range> buffers;
+		Si::asio::writing_observable<boost::asio::ip::tcp::socket, buffers> m_sender;
 		lua::coroutine m_coro;
 
 		virtual void got_element(boost::system::error_code value) SILICIUM_OVERRIDE
@@ -130,7 +146,7 @@ namespace
 
 		void sync_get(lua::current_thread thread)
 		{
-			boost::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
+			Si::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
 			if (!coro)
 			{
 				std::terminate(); //TODO
@@ -151,7 +167,7 @@ namespace
 		boost::asio::ip::tcp::acceptor m_acceptor;
 		Si::asio::tcp_acceptor m_incoming_clients;
 		bool m_waiting;
-		boost::optional<lua::coroutine> m_suspended;
+		Si::optional<lua::coroutine> m_suspended;
 		lua::reference m_cached_client_meta_table;
 
 		virtual void got_element(Si::asio::tcp_acceptor_result incoming) SILICIUM_OVERRIDE
@@ -164,10 +180,10 @@ namespace
 
 			if (incoming.is_error())
 			{
-				return Si::exchange(m_suspended, boost::none)->resume(1);
+				return Si::exchange(m_suspended, Si::none)->resume(1);
 			}
 
-			lua::coroutine child_coro = *std::move(Si::exchange(m_suspended, boost::none));
+			lua::coroutine child_coro = std::move(*Si::exchange(m_suspended, Si::none));
 			lua::stack child_stack(child_coro.thread());
 			assert(child_stack.size() == 0);
 
@@ -239,9 +255,9 @@ namespace
 				return lua::register_any_function(stack, [main_thread, &stack, &io](lua_Integer port)
 				{
 					boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
-					return lua::emplace_object< ::tcp_acceptor>(stack, [&stack](lua_State &)
+					return lua::emplace_object<tcp_acceptor>(stack, [&stack](lua_State &)
 					{
-						lua::stack_value meta = lua::create_default_meta_table< ::tcp_acceptor>(stack);
+						lua::stack_value meta = lua::create_default_meta_table<tcp_acceptor>(stack);
 						add_method(stack, meta, "sync_get", &tcp_acceptor::sync_get);
 						return meta;
 					}, main_thread, io, endpoint);

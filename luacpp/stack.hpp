@@ -5,28 +5,29 @@
 #include "luacpp/state.hpp"
 #include "luacpp/pcall.hpp"
 #include "luacpp/exception.hpp"
+#include "luacpp/path.hpp"
 #include <silicium/source/empty.hpp>
 #include <silicium/fast_variant.hpp>
 
 namespace lua
 {
-	struct top_checker
+	struct top_checker : boost::noncopyable
 	{
 		explicit top_checker(lua_State &lua)
-			: m_lua(lua)
+			: m_lua(&lua)
 			, m_top_on_entry(lua_gettop(&lua))
 		{
 		}
 
 		~top_checker()
 		{
-			int const top_on_exit = lua_gettop(&m_lua);
+			int const top_on_exit = lua_gettop(m_lua);
 			assert(top_on_exit == m_top_on_entry);
 		}
 
 	private:
 
-		lua_State &m_lua;
+		lua_State *m_lua;
 		int m_top_on_entry;
 	};
 
@@ -59,7 +60,7 @@ namespace lua
 
 		std::pair<error, stack_value> load_file(boost::filesystem::path const &file)
 		{
-			int rc = luaL_loadfile(m_state, file.c_str());
+			int rc = luaL_loadfile(m_state, to_utf8(file).c_str());
 			error ec = static_cast<error>(rc);
 			int top = checked_top();
 			return std::make_pair(ec, stack_value(*m_state, top));
@@ -97,6 +98,9 @@ namespace lua
 		template <class Pushable, class ArgumentSource>
 		stack_value call(Pushable const &function, ArgumentSource &&arguments, std::integral_constant<int, 1> expected_result_count)
 		{
+#ifdef _MSC_VER
+			boost::ignore_unused_variable_warning(expected_result_count);
+#endif
 			stack_array results = call(function, arguments, expected_result_count.value);
 			assert(results.size() == 1);
 			int where = results.from_bottom();
@@ -187,7 +191,7 @@ namespace lua
 
 		bool to_boolean(any_local const &local)
 		{
-			return lua_toboolean(m_state, local.from_bottom());
+			return lua_toboolean(m_state, local.from_bottom()) != 0;
 		}
 
 		void *to_user_data(any_local const &local)

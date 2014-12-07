@@ -33,7 +33,7 @@ namespace lua
 	{
 		bool operator()(lua_State &L, int address) const
 		{
-			return lua_toboolean(&L, address);
+			return lua_toboolean(&L, address) != 0;
 		}
 	};
 
