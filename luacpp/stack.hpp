@@ -3,6 +3,7 @@
 
 #include "luacpp/stack_value.hpp"
 #include "luacpp/state.hpp"
+#include "luacpp/pcall.hpp"
 #include "luacpp/exception.hpp"
 #include <silicium/source/empty.hpp>
 #include <silicium/fast_variant.hpp>
@@ -89,7 +90,7 @@ namespace lua
 			{
 				assert(top_after_call == top_before + 1);
 			}
-			handle_pcall_result(rc);
+			handle_pcall_result(*m_state, rc);
 			return stack_array(*m_state, top_before + 1, variable<int>{top_after_call - top_before});
 		}
 
@@ -125,7 +126,7 @@ namespace lua
 			{
 				return yield();
 			}
-			handle_pcall_result(rc);
+			handle_pcall_result(*m_state, rc);
 			int const result_count = checked_top();
 			return stack_array(*m_state, 1, variable<int>{result_count});
 		}
@@ -256,6 +257,7 @@ namespace lua
 		template <class Key, class Element>
 		void set_element(any_local const &table, Key &&key, Element &&element)
 		{
+			assert(get_type(table) == lua::type::table);
 			top_checker checker(*m_state);
 			push(*m_state, std::forward<Key>(key));
 			push(*m_state, std::forward<Element>(element));
@@ -267,6 +269,11 @@ namespace lua
 		{
 			push(*m_state, std::forward<Metatable>(meta));
 			lua_setmetatable(m_state, object.from_bottom());
+		}
+
+		int size()
+		{
+			return checked_top();
 		}
 
 	private:
@@ -298,18 +305,6 @@ namespace lua
 			}
 			assert(checked_top() == (top_before + argument_count));
 			return argument_count;
-		}
-
-		void handle_pcall_result(int rc)
-		{
-			if (rc == 0)
-			{
-				return;
-			}
-			//TODO: stack trace in case of an error
-			std::string message = lua_tostring(m_state, -1);
-			lua_pop(m_state, 1);
-			boost::throw_exception(lua_exception(std::move(message)));
 		}
 	};
 
