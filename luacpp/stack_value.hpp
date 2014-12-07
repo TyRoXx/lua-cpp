@@ -79,11 +79,6 @@ namespace lua
 			return Size::value;
 		}
 
-		lua::type get_type() const BOOST_NOEXCEPT
-		{
-			return static_cast<lua::type>(lua_type(thread(), from_bottom()));
-		}
-
 		void assert_top() const
 		{
 			assert(thread());

@@ -130,6 +130,11 @@ namespace lua
 			return m_from_bottom;
 		}
 
+		lua::type get_type() const BOOST_NOEXCEPT
+		{
+			return static_cast<lua::type>(lua_type(thread(), from_bottom()));
+		}
+
 		void swap(any_local &other) BOOST_NOEXCEPT
 		{
 			using boost::swap;
@@ -156,38 +161,6 @@ namespace lua
 		lua_State *m_thread;
 		int m_from_bottom;
 	};
-
-#if 0
-	struct array
-	{
-		array(int begin, int length) BOOST_NOEXCEPT
-			: m_begin(begin)
-			, m_length(length)
-		{
-		}
-
-		int begin() const BOOST_NOEXCEPT
-		{
-			return m_begin;
-		}
-
-		int length() const BOOST_NOEXCEPT
-		{
-			return m_length;
-		}
-
-		any_local operator[](int index) const BOOST_NOEXCEPT
-		{
-			assert(index < m_length);
-			return any_local(m_begin + index);
-		}
-
-	private:
-
-		int m_begin;
-		int m_length;
-	};
-#endif
 
 	template <type Type>
 	struct typed_local : any_local
