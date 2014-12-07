@@ -1,5 +1,6 @@
 #include "luacpp/register_any_function.hpp"
 #include "luacpp/meta_table.hpp"
+#include "luacpp/sink_into_lua.hpp"
 #include "luacpp/pcall.hpp"
 #include <silicium/asio/tcp_acceptor.hpp>
 #include <silicium/asio/writing_observable.hpp>
@@ -145,38 +146,6 @@ namespace
 		}
 	};
 
-	template <class T>
-	struct sink_into_lua
-	{
-		typedef T element_type;
-		typedef Si::success error_type;
-
-		explicit sink_into_lua(const lua::reference &handler, lua_State &state)
-			: m_handler(handler)
-			, m_state(&state)
-		{
-		}
-
-		error_type append(Si::iterator_range<element_type const *> data)
-		{
-			assert(m_state);
-			for (element_type const &element : data)
-			{
-				lua::push(*m_state, m_handler);
-				lua_getfield(m_state, -1, "append");
-				lua::push(*m_state, m_handler);
-				lua::push(*m_state, element);
-				lua::pcall(*m_state, 2, 0);
-			}
-			return error_type();
-		}
-
-	private:
-
-		const lua::reference &m_handler;
-		lua_State *m_state;
-	};
-
 	template <class Sink>
 	struct sink_from_lua
 	{
@@ -215,19 +184,19 @@ namespace
 
 		void status_line(Si::memory_range status, Si::memory_range status_text, Si::memory_range version, lua_State &state)
 		{
-			sink_into_lua<char> native_sink(m_sink, state);
+			lua::sink_into_lua<char> native_sink(m_sink, state);
 			Si::http::generate_status_line(native_sink, version, status, status_text);
 		}
 
 		void header(Si::memory_range key, Si::memory_range value, lua_State &state)
 		{
-			sink_into_lua<char> native_sink(m_sink, state);
+			lua::sink_into_lua<char> native_sink(m_sink, state);
 			Si::http::generate_header(native_sink, key, value);
 		}
 
 		void content(Si::memory_range content, lua_State &state)
 		{
-			sink_into_lua<char> native_sink(m_sink, state);
+			lua::sink_into_lua<char> native_sink(m_sink, state);
 			Si::append(native_sink, "\r\n");
 			native_sink.append(content);
 		}
