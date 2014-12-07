@@ -7,6 +7,7 @@
 #include <silicium/memory_range.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/filesystem/path.hpp>
+#include <iostream>
 
 namespace lua
 {
@@ -56,6 +57,25 @@ namespace lua
 			return boost::system::error_code(rc, get_lua_error_category());
 		}
 		return boost::system::error_code();
+	}
+
+	inline void print_stack(std::ostream &out, lua_State &L)
+	{
+		int size = lua_gettop(&L);
+		out << "Size: " << size << '\n';
+		for (int i = 1; i <= size; ++i)
+		{
+			out << "  " << i << ": " << lua_typename(&L, lua_type(&L, i)) << ' ';
+			switch (lua_type(&L, i))
+			{
+			case LUA_TFUNCTION:
+			case LUA_TUSERDATA:
+			case LUA_TLIGHTUSERDATA:
+				out << lua_topointer(&L, i);
+				break;
+			}
+			out << '\n';
+		}
 	}
 }
 
