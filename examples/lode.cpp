@@ -32,9 +32,25 @@ namespace
 			assert(m_socket);
 		}
 
-		void append(lua_Integer element)
+		void append(lua::any_local element)
 		{
-			m_send_buffer.push_back(static_cast<char>(element));
+			switch (element.get_type())
+			{
+			case lua::type::number:
+				m_send_buffer.push_back(static_cast<char>(lua_tointeger(element.thread(), element.from_bottom())));
+				break;
+
+			case lua::type::string:
+				{
+					size_t length = 0;
+					char const *begin = lua_tolstring(element.thread(), element.from_bottom(), &length);
+					m_send_buffer.insert(m_send_buffer.end(), begin, begin + length);
+					break;
+				}
+
+			default:
+				std::terminate(); //TODO
+			}
 		}
 
 		void flush(lua::current_thread thread)
