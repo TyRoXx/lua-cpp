@@ -11,6 +11,7 @@ end
 return function (require)
 	local tcp = require("tcp", "1.0")
 	local http = require("http", "1.0")
+	local gc = require("gc", "1.0")
 	local visitor_count = 0
 	local clients = tcp.create_acceptor(8080)
 	sync_for_each(clients, function (client)
@@ -26,7 +27,7 @@ return function (require)
 			response:header("Content-Type", "text/html")
 			response:header("Connection", "close")
 			visitor_count = visitor_count + 1
-			response:content("Hello, world!<br>Visitor number: " .. tostring(visitor_count))
+			response:content("Hello, world!<br>Visitor number: " .. tostring(visitor_count) .. "<br>" .. tostring(gc.get_allocated_bytes()))
 			sender:flush()
 		end))
 	end)

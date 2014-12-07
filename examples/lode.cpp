@@ -260,6 +260,24 @@ namespace
 			module.assert_top();
 			return module;
 		}
+		else if (name == "gc")
+		{
+			lua::stack_value module = stack.create_table();
+			stack.set_element(
+				module,
+				"get_allocated_bytes",
+				[main_thread, &stack](lua_State &)
+			{
+				return lua::register_any_function(stack, [main_thread]()
+				{
+					int kb = lua_gc(main_thread.get(), LUA_GCCOUNT, 0);
+					int bytes = lua_gc(main_thread.get(), LUA_GCCOUNTB, 0);
+					return static_cast<lua_Number>(kb) * 1024 + static_cast<lua_Number>(bytes);
+				});
+			});
+			module.assert_top();
+			return module;
+		}
 		return stack.push_nil();
 	}
 
