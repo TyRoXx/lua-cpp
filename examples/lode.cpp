@@ -5,6 +5,7 @@
 #include "luacpp/sink_from_lua.hpp"
 #include <silicium/asio/tcp_acceptor.hpp>
 #include <silicium/asio/writing_observable.hpp>
+#include <silicium/asio/timer.hpp>
 #include <silicium/observable/end.hpp>
 #include <silicium/observable/transform.hpp>
 #include <silicium/observable/ptr.hpp>
@@ -17,6 +18,7 @@
 #include <silicium/sink/iterator_sink.hpp>
 #include <boost/program_options.hpp>
 #include <iostream>
+#include <chrono>
 
 namespace
 {
@@ -180,7 +182,7 @@ namespace
 
 			if (incoming.is_error())
 			{
-				return Si::exchange(m_suspended, Si::none)->resume(1);
+				return Si::exchange(m_suspended, Si::none)->resume(0);
 			}
 
 			lua::coroutine child_coro = std::move(*Si::exchange(m_suspended, Si::none));
@@ -252,13 +254,14 @@ namespace
 				"create_acceptor",
 				[main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [main_thread, &stack, &io](lua_Integer port)
+				return lua::register_any_function(stack, [main_thread, &io](lua_Integer port, lua_State &L)
 				{
 					boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
-					return lua::emplace_object<tcp_acceptor>(stack, [&stack](lua_State &)
+					lua::stack s(L);
+					return lua::emplace_object<tcp_acceptor>(s, [&s](lua_State &)
 					{
-						lua::stack_value meta = lua::create_default_meta_table<tcp_acceptor>(stack);
-						add_method(stack, meta, "sync_get", &tcp_acceptor::sync_get);
+						lua::stack_value meta = lua::create_default_meta_table<tcp_acceptor>(s);
+						add_method(s, meta, "sync_get", &tcp_acceptor::sync_get);
 						return meta;
 					}, main_thread, io, endpoint);
 				});
@@ -274,17 +277,19 @@ namespace
 				"make_response_generator",
 				[main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [main_thread, &stack, &io](lua::any_local const &sink)
+				return lua::register_any_function(stack, [main_thread, &io](lua::any_local const &sink, lua_State &L)
 				{
-					lua::stack_value meta = lua::create_default_meta_table<http_response_generator>(stack);
-					lua::add_method(stack, meta, "status_line", &http_response_generator::status_line);
-					lua::add_method(stack, meta, "header", &http_response_generator::header);
-					lua::add_method(stack, meta, "content", &http_response_generator::content);
+					assert(sink.get_type() == lua::type::user_data);
+					lua::stack s(L);
+					lua::stack_value meta = lua::create_default_meta_table<http_response_generator>(s);
+					lua::add_method(s, meta, "status_line", &http_response_generator::status_line);
+					lua::add_method(s, meta, "header", &http_response_generator::header);
+					lua::add_method(s, meta, "content", &http_response_generator::content);
 
 					lua::reference sink_kept_alive = lua::create_reference(main_thread, sink);
 					assert(sink_kept_alive.get_type() == lua::type::user_data);
 
-					lua::stack_value generator = lua::emplace_object<http_response_generator>(stack, meta, std::move(sink_kept_alive));
+					lua::stack_value generator = lua::emplace_object<http_response_generator>(s, meta, std::move(sink_kept_alive));
 					lua::replace(generator, meta);
 					return generator;
 				});
@@ -305,6 +310,51 @@ namespace
 					int kb = lua_gc(main_thread.get(), LUA_GCCOUNT, 0);
 					int bytes = lua_gc(main_thread.get(), LUA_GCCOUNTB, 0);
 					return static_cast<lua_Number>(kb) * 1024 + static_cast<lua_Number>(bytes);
+				});
+			});
+			module.assert_top();
+			return module;
+		}
+		else if (name == "time")
+		{
+			lua::stack_value module = stack.create_table();
+			stack.set_element(
+				module,
+				"sleep",
+				[main_thread, &stack, &io](lua_State &)
+			{
+				return lua::register_any_function(stack, [main_thread, &io](lua_Number duration_seconds, lua::current_thread thread)
+				{
+					auto coro = lua::pin_coroutine(main_thread, thread);
+					if (!coro)
+					{
+						//TODO
+						std::terminate();
+					}
+
+					struct suspension
+					{
+						boost::asio::steady_timer timer;
+						lua::coroutine suspended;
+
+						explicit suspension(boost::asio::io_service &io, lua::coroutine suspended)
+							: timer(io)
+							, suspended(std::move(suspended))
+						{
+						}
+					};
+
+					auto suspension_ = std::make_shared<suspension>(io, std::move(*coro));
+					std::chrono::nanoseconds const duration(static_cast<std::int64_t>(duration_seconds * 1000000000.0));
+					suspension_->timer.expires_from_now(duration);
+
+					suspension_->suspended.suspend();
+					suspension_->timer.async_wait([suspension_](boost::system::error_code ec)
+					{
+						boost::ignore_unused_variable_warning(ec);
+						assert(!ec);
+						suspension_->suspended.resume(0);
+					});
 				});
 			});
 			module.assert_top();
