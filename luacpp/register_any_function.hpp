@@ -29,18 +29,12 @@ namespace lua
 
 	namespace detail
 	{
-		struct call_environment
-		{
-			lua_State *L;
-			bool *suspend_requested;
-		};
-
 		template <class T>
 		struct argument_converter
 		{
 			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = true;
 
-			T operator()(call_environment const &env, int address) const
+			T operator()(current_thread const &env, int address) const
 			{
 				return from_lua_cast<T>(*env.L, address);
 			}
@@ -56,9 +50,9 @@ namespace lua
 		{
 			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = false;
 
-			current_thread operator()(call_environment const &env, int) const
+			current_thread operator()(current_thread const &env, int) const
 			{
-				return current_thread{env.L, env.suspend_requested};
+				return env;
 			}
 		};
 
@@ -67,7 +61,7 @@ namespace lua
 		{
 			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = false;
 
-			lua_State &operator()(call_environment const &env, int) const
+			lua_State &operator()(current_thread const &env, int) const
 			{
 				return *env.L;
 			}
@@ -78,7 +72,7 @@ namespace lua
 		{
 			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = true;
 
-			any_local operator()(call_environment const &env, int address) const
+			any_local operator()(current_thread const &env, int address) const
 			{
 				return any_local(*env.L, address);
 			}
@@ -106,7 +100,7 @@ namespace lua
 		struct caller
 		{
 			template <class ...Parameters, std::size_t ...Indices, class Function>
-			result_or_yield call(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>) const
+			result_or_yield call(Function &func, current_thread const &env, ranges::v3::integer_sequence<Indices...>) const
 			{
 				assert(!env.suspend_requested || !*env.suspend_requested); //TODO
 				NonVoid result = func(argument_converter<Parameters>()(env, 1 + Indices)...);
@@ -125,7 +119,7 @@ namespace lua
 		struct caller<void>
 		{
 			template <class ...Parameters, std::size_t ...Indices, class Function>
-			result_or_yield call(Function &func, call_environment const &env, ranges::v3::integer_sequence<Indices...>) const
+			result_or_yield call(Function &func, current_thread const &env, ranges::v3::integer_sequence<Indices...>) const
 			{
 				func(argument_converter<Parameters>()(env, 1 + Indices)...);
 				int arguments_on_stack = argument_count_on_stack<Parameters...>::value;
@@ -151,7 +145,7 @@ namespace lua
 			](lua_State *L)
 			{
 				bool suspend_requested = false;
-				call_environment env{L, &suspend_requested};
+				current_thread env{L, &suspend_requested};
 				return caller<R>().template call<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 			});
 		}
@@ -166,7 +160,7 @@ namespace lua
 			](lua_State *L) mutable
 			{
 				bool suspend_requested = false;
-				call_environment env{L, &suspend_requested};
+				current_thread env{L, &suspend_requested};
 				return caller<R>().template call<Parameters...>(func, env, typename ranges::v3::make_integer_sequence<sizeof...(Parameters)>::type());
 			});
 		}
