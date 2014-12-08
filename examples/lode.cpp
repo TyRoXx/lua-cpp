@@ -66,11 +66,7 @@ namespace
 		void flush(lua::current_thread thread)
 		{
 			Si::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
-			if (!coro)
-			{
-				std::terminate(); //TODO
-				return;
-			}
+			assert(coro && "you cannot call this function from the Lua main thread");
 			m_sender.async_get_one(*this);
 			m_coro = std::move(*coro);
 			m_coro.suspend();
@@ -149,11 +145,7 @@ namespace
 		void sync_get(lua::current_thread thread)
 		{
 			Si::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
-			if (!coro)
-			{
-				std::terminate(); //TODO
-				return;
-			}
+			assert(coro && "you cannot call this function from the Lua main thread");
 			m_waiting = true;
 			m_incoming_clients.async_get_one(static_cast<Si::observer<Si::asio::tcp_acceptor_result> &>(*this));
 			if (m_waiting)
@@ -326,11 +318,7 @@ namespace
 				return lua::register_any_function(stack, [main_thread, &io](lua_Number duration_seconds, lua::current_thread thread)
 				{
 					auto coro = lua::pin_coroutine(main_thread, thread);
-					if (!coro)
-					{
-						//TODO
-						std::terminate();
-					}
+					assert(coro && "you cannot call this function from the Lua main thread");
 
 					struct suspension
 					{
@@ -424,20 +412,20 @@ int main(int argc, char **argv)
 	});
 	luaopen_base(state.get());
 	luaopen_string(state.get());
-	lua::stack stack(*state);
-	std::pair<lua::error, lua::stack_value> first_level = stack.load_file(parsed_options->program);
+
+	lua::main_thread main_thread(*state);
+	lua::coroutine runner = lua::create_coroutine(main_thread);
+	lua::stack runner_stack(runner.thread());
+	std::pair<lua::error, lua::stack_value> first_level = runner_stack.load_file(parsed_options->program);
 	if (first_level.first != lua::error::success)
 	{
-		std::cerr << stack.to_string(first_level.second) << '\n';
+		std::cerr << runner_stack.to_string(first_level.second) << '\n';
 		return 1;
 	}
 
 	try
 	{
-		lua::stack_value second_level = stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
-		lua::main_thread main_thread(*state);
-		lua::coroutine runner = lua::create_coroutine(main_thread);
-		lua::stack runner_stack(runner.thread());
+		lua::stack_value second_level = runner_stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
 		lua::stack::resume_result resumed = runner_stack.resume(
 			lua::xmove(std::move(second_level), runner.thread()),
 			Si::make_oneshot_generator_source([main_thread, &runner_stack, &io]()
