@@ -333,7 +333,7 @@ namespace
 					};
 
 					auto suspension_ = std::make_shared<suspension>(io, std::move(*coro));
-					std::chrono::nanoseconds const duration(static_cast<std::int64_t>(duration_seconds * 1000000000.0));
+					std::chrono::microseconds const duration(static_cast<std::int64_t>(duration_seconds * 1000000.0));
 					suspension_->timer.expires_from_now(duration);
 
 					suspension_->suspended.suspend();
