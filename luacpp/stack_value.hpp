@@ -16,7 +16,7 @@ namespace lua
 	};
 
 	template <class Size>
-	struct basic_stack_value : private Size, public any_local
+	struct basic_stack_value SILICIUM_FINAL : private Size, public any_local
 	{
 		basic_stack_value() BOOST_NOEXCEPT
 		{
@@ -66,6 +66,16 @@ namespace lua
 			assert(current_top == m_initial_top);
 			lua_pop(thread(), Size::value);
 			assert(lua_gettop(thread()) == (m_initial_top - Size::value));
+		}
+
+		void swap(basic_stack_value &other) BOOST_NOEXCEPT
+		{
+			std::swap(*this, other);
+		}
+
+		void pop()
+		{
+			basic_stack_value().swap(*this);
 		}
 
 		void release() BOOST_NOEXCEPT
