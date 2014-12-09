@@ -230,7 +230,79 @@ namespace
 
 		lua::reference m_sink;
 	};
+}
 
+namespace lua
+{
+	namespace detail
+	{
+		template <class Observable>
+		struct async_operation : public Si::observer<typename Observable::element_type>
+		{
+			main_thread main;
+			coroutine suspended;
+			Observable observed;
+			reference keep_this_alive;
+
+			async_operation(main_thread main, coroutine suspended, Observable observed)
+				: main(main)
+				, suspended(std::move(suspended))
+				, observed(std::move(observed))
+			{
+			}
+
+			virtual void got_element(typename Observable::element_type value) SILICIUM_OVERRIDE
+			{
+				assert(lua_gettop(&suspended.thread()) == 0);
+				auto destroy_this_at_end_of_scope = std::move(keep_this_alive);
+				using lua::push;
+				push(suspended.thread(), std::move(value));
+				suspended.resume(1);
+			}
+
+			virtual void ended() SILICIUM_OVERRIDE
+			{
+				throw std::logic_error("to do");
+			}
+		};
+
+		template <class ObservableFactory, class Result, class Class, class ...Args>
+		stack_value register_async_function_impl(main_thread main, stack &s, ObservableFactory &&init, Result(Class::*)(Args...) const)
+		{
+			return register_any_function(s, [main, init](Args ...args, current_thread thread)
+			{
+				auto coro = pin_coroutine(main, thread);
+				assert(coro && "this function cannot be called from the Lua main thread");
+				auto observable = init(std::forward<Args>(args)...);
+				typedef decltype(observable) observable_type;
+				typedef typename observable_type::element_type element_type;
+				typedef async_operation<observable_type> operation_type;
+
+				stack s(*thread.L);
+				auto meta = create_default_meta_table<operation_type>(s);
+				auto object = emplace_object<operation_type>(s, meta, main, std::move(*coro), std::move(observable));
+				replace(object, meta);
+
+				auto &operation = assume_type<operation_type>(object);
+				operation.keep_this_alive = create_reference(main, object);
+				operation.observed.async_get_one(static_cast<Si::observer<element_type> &>(operation));
+
+				object.pop();
+				operation.suspended.suspend();
+			});
+		}
+	}
+
+	template <class ObservableFactory>
+	stack_value register_async_function(main_thread main, stack &s, ObservableFactory &&init)
+	{
+		typedef typename std::decay<ObservableFactory>::type clean;
+		return detail::register_async_function_impl(main, s, std::forward<ObservableFactory>(init), &clean::operator());
+	}
+}
+
+namespace
+{
 	lua::stack_value require_package(
 		lua::main_thread main_thread,
 		lua::stack &stack,
@@ -315,34 +387,18 @@ namespace
 				"sleep",
 				[main_thread, &stack, &io](lua_State &)
 			{
-				return lua::register_any_function(stack, [main_thread, &io](lua_Number duration_seconds, lua::current_thread thread)
+				return lua::register_async_function(main_thread, stack, [&io](lua_Number duration_seconds)
 				{
-					auto coro = lua::pin_coroutine(main_thread, thread);
-					assert(coro && "you cannot call this function from the Lua main thread");
-
-					struct suspension
-					{
-						boost::asio::steady_timer timer;
-						lua::coroutine suspended;
-
-						explicit suspension(boost::asio::io_service &io, lua::coroutine suspended)
-							: timer(io)
-							, suspended(std::move(suspended))
-						{
-						}
-					};
-
-					auto suspension_ = std::make_shared<suspension>(io, std::move(*coro));
 					std::chrono::microseconds const duration(static_cast<std::int64_t>(duration_seconds * 1000000.0));
-					suspension_->timer.expires_from_now(duration);
-
-					suspension_->suspended.suspend();
-					suspension_->timer.async_wait([suspension_](boost::system::error_code ec)
+					return Si::transform(
+						Si::asio::make_timer(io, Si::make_constant_observable(duration)),
+#ifdef _MSC_VER
+						std::function<lua::nil(Si::asio::timer_elapsed)> //workaround for lambda-to-funcptr issues
+#endif
+						([](Si::asio::timer_elapsed)
 					{
-						boost::ignore_unused_variable_warning(ec);
-						assert(!ec);
-						suspension_->suspended.resume(0);
-					});
+						return lua::nil();
+					}));
 				});
 			});
 			module.assert_top();
