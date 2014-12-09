@@ -72,6 +72,14 @@ namespace lua
 			return (raw_this->*method)(std::forward<Args>(args)...);
 		}));
 	}
+
+	template <class T>
+	T &assume_type(any_local const &local)
+	{
+		void *data = lua_touserdata(local.thread(), local.from_bottom());
+		assert(data);
+		return *static_cast<T *>(data);
+	}
 }
 
 #endif
