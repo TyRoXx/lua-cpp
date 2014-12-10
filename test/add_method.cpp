@@ -47,7 +47,16 @@ namespace
 	}
 }
 
-BOOST_AUTO_TEST_CASE(lua_wrapper_add_method_trivial)
+BOOST_AUTO_TEST_CASE(lua_wrapper_add_method_from_method_ptr_const)
+{
+	test_method_call([](lua::stack_value &meta)
+	{
+		lua::stack s(*meta.thread());
+		lua::add_method(s, meta, "method", &test_struct::method_const);
+	});
+}
+
+BOOST_AUTO_TEST_CASE(lua_wrapper_add_method_from_method_ptr_non_const)
 {
 	test_method_call([](lua::stack_value &meta)
 	{

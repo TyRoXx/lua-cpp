@@ -43,16 +43,21 @@ namespace lua
 
 	namespace detail
 	{
-		template <class Result, class Class, class ...Args>
-		stack_value register_method(lua::stack &s, Result (Class::*method)(Args...))
-		{
-			return register_any_function(s, [method](void *this_, Args ...args) -> Result
-			{
-				Class * const raw_this = static_cast<Class *>(this_);
-				assert(raw_this);
-				return (raw_this->*method)(std::forward<Args>(args)...);
-			});
+#define LUA_CPP_DETAIL_REGISTER_METHOD(constness) \
+		template <class Result, class Class, class ...Args> \
+		stack_value register_method(lua::stack &s, Result (Class::*method)(Args...) constness) \
+		{ \
+			return register_any_function(s, [method](void *this_, Args ...args) -> Result \
+			{ \
+				Class * const raw_this = static_cast<Class *>(this_); \
+				assert(raw_this); \
+				return (raw_this->*method)(std::forward<Args>(args)...); \
+			}); \
 		}
+
+		LUA_CPP_DETAIL_REGISTER_METHOD()
+		LUA_CPP_DETAIL_REGISTER_METHOD(const)
+#undef LUA_CPP_DETAIL_REGISTER_METHOD
 
 		template <class T>
 		struct from_user_data;
