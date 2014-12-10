@@ -1,6 +1,7 @@
 #ifndef LUACPP_META_TABLE_HPP
 #define LUACPP_META_TABLE_HPP
 
+#include "luacpp/register_any_function.hpp"
 #include "luacpp/stack.hpp"
 #include "luacpp/stack_value.hpp"
 
