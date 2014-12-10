@@ -41,37 +41,74 @@ namespace lua
 		return meta;
 	}
 
-	template <class MetaTable, class Name, class R, class Class, class ...Args>
-	void add_method(lua::stack &s, MetaTable &&meta, Name &&name, R (Class::*method)(Args...))
+	namespace detail
 	{
-		assert(s.get_type(meta) == type::table);
-		stack_value registered_method = lua::register_any_function(s, [method](void *this_, Args ...args) -> R
+		template <class Result, class Class, class ...Args>
+		stack_value register_method(lua::stack &s, Result (Class::*method)(Args...))
 		{
-			Class * const raw_this = static_cast<Class *>(this_);
-			assert(raw_this);
-			return (raw_this->*method)(std::forward<Args>(args)...);
-		});
-		assert(s.get_type(meta) == type::table);
-		assert(s.get_type(registered_method) == type::function);
-		s.set_element(
-			meta,
-			std::forward<Name>(name),
-			std::move(registered_method)
-		);
+			return register_any_function(s, [method](void *this_, Args ...args) -> Result
+			{
+				Class * const raw_this = static_cast<Class *>(this_);
+				assert(raw_this);
+				return (raw_this->*method)(std::forward<Args>(args)...);
+			});
+		}
+
+		template <class T>
+		struct from_user_data;
+
+		template <class T>
+		struct from_user_data<T &>
+		{
+			T &operator()(void *user_data) const
+			{
+				assert(user_data);
+				return *static_cast<T *>(user_data);
+			}
+		};
+
+		template <class T>
+		struct from_user_data<T *>
+		{
+			T *operator()(void *user_data) const
+			{
+				assert(user_data);
+				return static_cast<T *>(user_data);
+			}
+		};
+
+#define LUA_CPP_DETAIL_REGISTER_METHOD_FROM_FUNCTOR(constness, mutableness) \
+		template <class Functor, class Result, class Class, class Arg0, class ...Args> \
+		stack_value register_method_from_functor(lua::stack &s, Functor &&functor, Result (Class::*)(Arg0, Args...) constness) \
+		{ \
+			return register_any_function(s, [functor](void *this_, Args ...args) mutableness -> Result \
+			{ \
+				assert(this_); \
+				auto &&raw_this = from_user_data<Arg0>()(this_); \
+				return functor(raw_this, std::forward<Args>(args)...); \
+			}); \
+		}
+
+		LUA_CPP_DETAIL_REGISTER_METHOD_FROM_FUNCTOR(     , mutable)
+		LUA_CPP_DETAIL_REGISTER_METHOD_FROM_FUNCTOR(const,        )
+#undef LUA_CPP_DETAIL_REGISTER_METHOD_FROM_FUNCTOR
+
+		template <class Functor>
+		stack_value register_method(lua::stack &s, Functor &&functor)
+		{
+			typedef typename std::decay<Functor>::type clean;
+			return register_method_from_functor(s, std::forward<Functor>(functor), &clean::operator());
+		}
 	}
 
-	template <class MetaTable, class Name, class R, class Class, class ...Args>
-	void add_method(lua::stack &s, MetaTable &&meta, Name &&name, R (Class::*method)(Args...) const)
+	template <class MetaTable, class Name, class Function>
+	void add_method(lua::stack &s, MetaTable &&meta, Name &&name, Function &&function)
 	{
 		s.set_element(
-			meta,
+			std::forward<MetaTable>(meta),
 			std::forward<Name>(name),
-			lua::register_any_function(s, [method](void *this_, Args ...args) -> R
-		{
-			Class * const raw_this = static_cast<Class *>(this_);
-			assert(raw_this);
-			return (raw_this->*method)(std::forward<Args>(args)...);
-		}));
+			detail::register_method(s, std::forward<Function>(function))
+		);
 	}
 
 	template <class T>
