@@ -409,17 +409,19 @@ int main(int argc, char **argv)
 
 	try
 	{
-		lua::stack_value second_level = runner_stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
-		lua::stack::resume_result resumed = runner_stack.resume(
-			lua::xmove(std::move(second_level), runner.thread()),
-			Si::make_oneshot_generator_source([main_thread, &runner_stack, &io]()
 		{
-			return lua::register_any_function(runner_stack, [main_thread, &runner_stack, &io](Si::noexcept_string const &name, Si::noexcept_string const &version)
+			lua::stack_value second_level = runner_stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
+			lua::stack::resume_result resumed = runner_stack.resume(
+				lua::xmove(std::move(second_level), runner.thread()),
+				Si::make_oneshot_generator_source([main_thread, &runner_stack, &io]()
 			{
-				return require_package(main_thread, runner_stack, io, name, version);
-			});
-		}));
-		assert(Si::try_get_ptr<lua::stack::yield>(resumed));
+				return lua::register_any_function(runner_stack, [main_thread, &runner_stack, &io](Si::noexcept_string const &name, Si::noexcept_string const &version)
+				{
+					return require_package(main_thread, runner_stack, io, name, version);
+				});
+			}));
+			assert(Si::try_get_ptr<lua::stack::yield>(resumed));
+		}
 		io.run();
 	}
 	catch (std::exception const &ex)
