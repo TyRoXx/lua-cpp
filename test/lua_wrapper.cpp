@@ -1,4 +1,5 @@
 #include <boost/test/unit_test.hpp>
+#include "test_with_environment.hpp"
 #include "luacpp/register_any_function.hpp"
 #include "luacpp/coroutine.hpp"
 #include "luacpp/meta_table.hpp"
@@ -130,27 +131,9 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_c_closure)
 	BOOST_CHECK_EQUAL(0, lua_gettop(&L));
 }
 
-namespace
-{
-	typedef std::shared_ptr<lua_Number> resource;
-
-	void test_with_environment(std::function<void (lua::stack &, resource)> const &run)
-	{
-		auto res = std::make_shared<lua_Number>(2);
-		{
-			auto state = lua::create_lua();
-			lua::stack s(*state);
-			run(s, res);
-			int top = lua_gettop(s.state());
-			BOOST_CHECK_EQUAL(0, top);
-		}
-		BOOST_CHECK_EQUAL(1, res.use_count());
-	}
-}
-
 BOOST_AUTO_TEST_CASE(lua_wrapper_register_cpp_closure)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::stack_value closure = lua::register_closure(
 			s,
@@ -169,7 +152,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_cpp_closure)
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_register_cpp_closure_with_upvalues)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		std::array<lua_Number, 1> const upvalues{{ 3.0 }};
 		lua::stack_value closure = lua::register_closure(
@@ -189,7 +172,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_cpp_closure_with_upvalues)
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_types)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::stack_value registered = lua::register_any_function(
 			s,
@@ -254,7 +237,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_no_arguments)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		bool called = false;
 		lua::stack_value registered = lua::register_any_function(
@@ -273,7 +256,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_no_ar
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_mutable)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		bool called = false;
 		lua::stack_value registered = lua::register_any_function(
@@ -290,7 +273,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_mutab
 	});
 }
 
-namespace
+namespace test
 {
 	template <class T>
 	void test_return_type(lua::stack &s, resource bound, T original)
@@ -314,17 +297,17 @@ namespace
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_return_types)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
-		test_return_type(s, bound, static_cast<lua_Number>(2));
-		test_return_type(s, bound, true);
-		test_return_type(s, bound, Si::noexcept_string("text"));
+		test::test_return_type(s, bound, static_cast<lua_Number>(2));
+		test::test_return_type(s, bound, true);
+		test::test_return_type(s, bound, Si::noexcept_string("text"));
 	});
 }
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		auto obj = s.create_user_data(1);
 		{
@@ -345,7 +328,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_index_operator)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::stack_value table = s.create_table();
 		s.set_element(table, static_cast<lua_Integer>(1), "abc");
@@ -358,7 +341,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_index_operator)
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yield)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
@@ -399,7 +382,7 @@ namespace
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yielding_method)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
@@ -414,7 +397,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yielding_method)
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
@@ -443,7 +426,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_finish)
 {
-	test_with_environment([](lua::stack &s, resource bound)
+	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
@@ -457,42 +440,5 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_finish)
 		BOOST_REQUIRE(return_values);
 		BOOST_REQUIRE_EQUAL(1, return_values->size());
 		BOOST_CHECK_EQUAL(static_cast<lua_Integer>(23), coro_stack.get_integer(*return_values));
-	});
-}
-
-BOOST_AUTO_TEST_CASE(lua_wrapper_add_method_trivial)
-{
-	test_with_environment([](lua::stack &s, resource bound)
-	{
-		struct test_struct
-		{
-			bool *called;
-
-			explicit test_struct(bool &called)
-				: called(&called)
-			{
-			}
-
-			void method()
-			{
-				BOOST_CHECK(called);
-				BOOST_REQUIRE(!*called);
-				*called = true;
-			}
-		};
-
-		lua::stack_value meta = lua::create_default_meta_table<test_struct>(s);
-		lua::add_method(s, meta, "method", &test_struct::method);
-
-		bool called = false;
-		lua::stack_value object = lua::emplace_object<test_struct>(s, meta, called);
-		
-		lua_getfield(s.state(), -1, "method");
-
-		lua::push(*s.state(), object);
-
-		BOOST_REQUIRE(!called);
-		lua::pcall(*s.state(), 1, boost::none);
-		BOOST_CHECK(called);
 	});
 }
