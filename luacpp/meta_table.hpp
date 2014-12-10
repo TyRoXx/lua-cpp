@@ -31,6 +31,7 @@ namespace lua
 	{
 		lua::stack_value meta = s.create_table();
 		s.set_element(meta, "__index", meta);
+		s.set_element(meta, "__metatable", "USERDATA");
 		s.set_element(meta, "__gc", s.register_function([](lua_State *L) -> int
 		{
 			T *obj = static_cast<T *>(lua_touserdata(L, -1));
