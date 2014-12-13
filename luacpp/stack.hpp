@@ -162,12 +162,6 @@ namespace lua
 			return stack_value(*m_state, size(*m_state));
 		}
 
-		stack_value push_nil()
-		{
-			lua_pushnil(m_state);
-			return stack_value(*m_state, size(*m_state));
-		}
-
 		template <class Key, class Element>
 		void set_element(any_local const &table, Key &&key, Element &&element)
 		{
@@ -218,6 +212,12 @@ namespace lua
 	inline std::integral_constant<int, 1> one()
 	{
 		return {};
+	}
+
+	inline stack_value push_nil(lua_State &stack) BOOST_NOEXCEPT
+	{
+		lua_pushnil(&stack);
+		return stack_value(stack, size(stack));
 	}
 }
 

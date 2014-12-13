@@ -333,7 +333,7 @@ namespace
 			module.assert_top();
 			return module;
 		}
-		return stack.push_nil();
+		return lua::push_nil(*stack.state());
 	}
 
 	struct options
