@@ -47,17 +47,6 @@ namespace lua
 			return m_state;
 		}
 
-		stack_value load_buffer(Si::memory_range code, char const *name)
-		{
-			auto error = lua::load_buffer(*m_state, code, name);
-			if (error)
-			{
-				boost::throw_exception(boost::system::system_error(error));
-			}
-			int top = lua_gettop(m_state);
-			return stack_value(*m_state, top);
-		}
-
 		std::pair<error, stack_value> load_file(boost::filesystem::path const &file)
 		{
 			int rc = luaL_loadfile(m_state, to_utf8(file).c_str());

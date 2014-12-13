@@ -2,6 +2,7 @@
 #include "luacpp/reference.hpp"
 #include "luacpp/state.hpp"
 #include "luacpp/stack.hpp"
+#include "luacpp/load.hpp"
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_reference)
 {
@@ -9,7 +10,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_reference)
 	lua_State &L = *state;
 	lua::stack s(L);
 	std::string const code = "return 3";
-	lua::reference const ref = lua::create_reference(lua::main_thread(L), s.load_buffer(Si::make_memory_range(code), "test"));
+	lua::reference const ref = lua::create_reference(lua::main_thread(L), lua::load_buffer(L, Si::make_memory_range(code), "test").value());
 	BOOST_CHECK_EQUAL(0, lua_gettop(&L));
 	BOOST_REQUIRE(!ref.empty());
 	{

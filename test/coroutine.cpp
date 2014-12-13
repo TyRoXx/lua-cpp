@@ -3,6 +3,7 @@
 #include "luacpp/coroutine.hpp"
 #include "luacpp/register_any_function.hpp"
 #include "luacpp/meta_table.hpp"
+#include "luacpp/load.hpp"
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yield)
 {
@@ -67,7 +68,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
 
-		lua::stack_value entry_point = coro_stack.load_buffer(Si::make_c_str_range("return function (yielder) yielder:yield() end"), "test");
+		lua::stack_value entry_point = lua::load_buffer(coro.thread(), Si::make_c_str_range("return function (yielder) yielder:yield() end"), "test").value();
 		BOOST_CHECK_EQUAL(0, lua_status(&coro.thread()));
 
 		lua::stack_value entry_point_2 = coro_stack.call(entry_point, lua::no_arguments(), std::integral_constant<int, 1>());

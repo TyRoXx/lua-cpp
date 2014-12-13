@@ -3,6 +3,7 @@
 #include "luacpp/register_any_function.hpp"
 #include "luacpp/coroutine.hpp"
 #include "luacpp/meta_table.hpp"
+#include "luacpp/load.hpp"
 #include <lauxlib.h>
 #include <boost/optional/optional_io.hpp>
 #include <silicium/source/memory_source.hpp>
@@ -21,7 +22,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_load_buffer)
 	lua::stack s(L);
 	std::string const code = "return 3";
 	{
-		lua::stack_value const compiled = s.load_buffer(Si::make_memory_range(code), "test");
+		lua::stack_value const compiled = lua::load_buffer(L, Si::make_memory_range(code), "test").value();
 		lua::stack_value const results = s.call(compiled, lua::no_arguments(), lua::one());
 		auto result = s.get_number(lua::at(results, 0));
 		BOOST_CHECK_EQUAL(boost::make_optional(3.0), result);
@@ -36,9 +37,10 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_call_multret)
 	lua::stack s(L);
 	std::string const code = "return 1, 2, 3";
 	{
-		lua::stack_value compiled = s.load_buffer(
+		lua::stack_value compiled = lua::load_buffer(
+					L,
 					Si::make_memory_range(code),
-					"test");
+					"test").value();
 		lua::stack_array results = s.call(std::move(compiled), lua::no_arguments(), boost::none);
 		BOOST_REQUIRE_EQUAL(3, results.size());
 		std::vector<lua_Number> result_numbers;
@@ -62,7 +64,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_call)
 		boost::optional<lua_Number> result_a, result_b;
 		boost::optional<Si::noexcept_string> result_str;
 		boost::optional<bool> result_bool;
-		lua::stack_value compiled = s.load_buffer(Si::make_memory_range(code), "test");
+		lua::stack_value compiled = lua::load_buffer(L, Si::make_memory_range(code), "test").value();
 		lua::stack_array func = s.call(compiled, lua::no_arguments(), 1);
 		std::array<Si::fast_variant<lua_Number, Si::noexcept_string, bool>, 4> const arguments
 		{{
@@ -330,7 +332,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 			s.set_meta_table(obj, meta);
 		}
 		lua::set_global(*s.state(), "obj", obj);
-		boost::optional<lua_Integer> result = s.get_integer(s.call(s.load_buffer(Si::make_c_str_range("return obj:method()"), "test"), lua::no_arguments(), std::integral_constant<int, 1>()));
+		boost::optional<lua_Integer> result = s.get_integer(s.call(lua::load_buffer(*s.state(), Si::make_c_str_range("return obj:method()"), "test").value(), lua::no_arguments(), std::integral_constant<int, 1>()));
 		BOOST_CHECK_EQUAL(boost::optional<lua_Integer>(234), result);
 	});
 }

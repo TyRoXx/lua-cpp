@@ -62,7 +62,7 @@ namespace lua
 			{
 				std::string message = lua_tostring(m_thread, -1);
 				lua_pop(m_thread, 1);
-				boost::throw_exception(lua_exception(std::move(message)));
+				boost::throw_exception(lua_exception(rc, std::move(message)));
 			}
 		}
 

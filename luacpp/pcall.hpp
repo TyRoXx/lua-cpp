@@ -15,7 +15,7 @@ namespace lua
 		//TODO: stack trace in case of an error
 		std::string message = lua_tostring(&L, -1);
 		lua_pop(&L, 1);
-		boost::throw_exception(lua_exception(std::move(message)));
+		boost::throw_exception(lua_exception(rc, std::move(message)));
 	}
 
 	inline void pcall(lua_State &L, int arguments, boost::optional<int> expected_results)
