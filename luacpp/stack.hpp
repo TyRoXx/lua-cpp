@@ -149,16 +149,6 @@ namespace lua
 			return register_function_with_existing_upvalues(function, upvalue_count);
 		}
 
-		template <class Key, class Element>
-		void set_element(any_local const &table, Key &&key, Element &&element)
-		{
-			assert(get_type(table) == lua::type::table);
-			top_checker checker(*m_state);
-			push(*m_state, std::forward<Key>(key));
-			push(*m_state, std::forward<Element>(element));
-			lua_settable(m_state, table.from_bottom());
-		}
-
 	private:
 
 		lua_State *m_state;
@@ -218,6 +208,16 @@ namespace lua
 	{
 		push(*object.thread(), std::forward<Metatable>(meta));
 		lua_setmetatable(object.thread(), object.from_bottom());
+	}
+
+	template <class Key, class Element>
+	void set_element(any_local const &table, Key &&key, Element &&element)
+	{
+		assert(get_type(table) == lua::type::table);
+		top_checker checker(*table.thread());
+		push(*table.thread(), std::forward<Key>(key));
+		push(*table.thread(), std::forward<Element>(element));
+		lua_settable(table.thread(), table.from_bottom());
 	}
 }
 

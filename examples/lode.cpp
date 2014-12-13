@@ -242,7 +242,7 @@ namespace
 		if (name == "tcp")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
-			stack.set_element(
+			set_element(
 				module,
 				"create_acceptor",
 				[main_thread, &stack, &io](lua_State &)
@@ -265,7 +265,7 @@ namespace
 		else if (name == "http")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
-			stack.set_element(
+			set_element(
 				module,
 				"make_response_generator",
 				[main_thread, &stack, &io](lua_State &)
@@ -293,7 +293,7 @@ namespace
 		else if (name == "gc")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
-			stack.set_element(
+			set_element(
 				module,
 				"get_allocated_bytes",
 				[main_thread, &stack](lua_State &)
@@ -311,7 +311,7 @@ namespace
 		else if (name == "time")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
-			stack.set_element(
+			set_element(
 				module,
 				"sleep",
 				[main_thread, &stack, &io](lua_State &)

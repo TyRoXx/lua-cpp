@@ -323,12 +323,12 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 		auto obj = lua::create_user_data(*s.state(), 1);
 		{
 			auto meta = lua::create_table(*s.state());
-			s.set_element(meta, "method", s.register_function([](lua_State *L) -> int
+			set_element(meta, "method", s.register_function([](lua_State *L) -> int
 			{
 				lua_pushinteger(L, 234);
 				return 1;
 			}));
-			s.set_element(meta, "__index", meta);
+			set_element(meta, "__index", meta);
 			set_meta_table(obj, meta);
 		}
 		lua::set_global(*s.state(), "obj", obj);
@@ -342,7 +342,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_index_operator)
 	test::test_with_environment([](lua::stack &s, test::resource bound)
 	{
 		lua::stack_value table = lua::create_table(*s.state());
-		s.set_element(table, static_cast<lua_Integer>(1), "abc");
+		set_element(table, static_cast<lua_Integer>(1), "abc");
 		lua::stack_value element_1 = table[static_cast<lua_Integer>(1)];
 		lua::stack_value element_2 = table[static_cast<lua_Integer>(2)];
 		BOOST_CHECK_EQUAL(lua::type::string, get_type(element_1));

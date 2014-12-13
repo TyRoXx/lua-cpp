@@ -81,7 +81,7 @@ namespace lua
 				//TODO: cache metatable
 				{
 					stack_value destructor = s.register_function(detail::delete_function<clean_function>);
-					s.set_element(meta_table, "__gc", destructor);
+					set_element(meta_table, "__gc", destructor);
 				}
 				set_meta_table(data, meta_table);
 			}
