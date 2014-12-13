@@ -2,7 +2,6 @@
 #define LUACPP_STATE_HPP
 
 #include "luacpp/error.hpp"
-#include "luacpp/path.hpp"
 #include <memory>
 #include <silicium/config.hpp>
 #include <silicium/memory_range.hpp>
@@ -38,16 +37,6 @@ namespace lua
 			throw std::bad_alloc();
 		}
 		return lua;
-	}
-
-	inline boost::system::error_code load_file(lua_State &L, boost::filesystem::path const &file)
-	{
-		int rc = luaL_loadfile(&L, to_utf8(file).c_str());
-		if (rc != 0)
-		{
-			return boost::system::error_code(rc, get_lua_error_category());
-		}
-		return boost::system::error_code();
 	}
 
 	inline void print_stack(std::ostream &out, lua_State &L)

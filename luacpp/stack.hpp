@@ -5,7 +5,6 @@
 #include "luacpp/state.hpp"
 #include "luacpp/pcall.hpp"
 #include "luacpp/exception.hpp"
-#include "luacpp/path.hpp"
 #include <silicium/source/empty.hpp>
 #include <silicium/fast_variant.hpp>
 
@@ -45,14 +44,6 @@ namespace lua
 		lua_State *state() const BOOST_NOEXCEPT
 		{
 			return m_state;
-		}
-
-		std::pair<error, stack_value> load_file(boost::filesystem::path const &file)
-		{
-			int rc = luaL_loadfile(m_state, to_utf8(file).c_str());
-			error ec = static_cast<error>(rc);
-			int top = checked_top();
-			return std::make_pair(ec, stack_value(*m_state, top));
 		}
 
 		template <class Pushable, class ArgumentSource>

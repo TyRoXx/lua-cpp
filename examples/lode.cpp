@@ -2,6 +2,7 @@
 #include "luacpp/sink_into_lua.hpp"
 #include "luacpp/pcall.hpp"
 #include "luacpp/sink_from_lua.hpp"
+#include "luacpp/load.hpp"
 #include "luacpp/register_async_function.hpp"
 #include <silicium/asio/tcp_acceptor.hpp>
 #include <silicium/asio/writing_observable.hpp>
@@ -400,17 +401,17 @@ int main(int argc, char **argv)
 	lua::main_thread main_thread(*state);
 	lua::coroutine runner = lua::create_coroutine(main_thread);
 	lua::stack runner_stack(runner.thread());
-	std::pair<lua::error, lua::stack_value> first_level = runner_stack.load_file(parsed_options->program);
-	if (first_level.first != lua::error::success)
+	lua::result first_level = lua::load_file(runner.thread(), parsed_options->program);
+	if (first_level.is_error())
 	{
-		std::cerr << runner_stack.to_string(first_level.second) << '\n';
+		std::cerr << first_level.code() << ": " << runner_stack.to_string(first_level.get_error()) << '\n';
 		return 1;
 	}
 
 	try
 	{
 		{
-			lua::stack_value second_level = runner_stack.call(first_level.second, lua::no_arguments(), std::integral_constant<int, 1>());
+			lua::stack_value second_level = runner_stack.call(first_level.value(), lua::no_arguments(), std::integral_constant<int, 1>());
 			lua::stack::resume_result resumed = runner_stack.resume(
 				lua::xmove(std::move(second_level), runner.thread()),
 				Si::make_oneshot_generator_source([main_thread, &runner_stack, &io]()
