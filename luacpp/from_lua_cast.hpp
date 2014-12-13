@@ -82,6 +82,19 @@ namespace lua
 		}
 	};
 
+	template <>
+	struct from_lua<Si::memory_range>
+	{
+		static type const lua_type = type::string;
+
+		Si::memory_range operator()(lua_State &L, int address) const
+		{
+			std::size_t length = 0;
+			char const *begin = lua_tolstring(&L, address, &length);
+			return Si::make_memory_range(begin, begin + length);
+		}
+	};
+
 	template <class ...T>
 	struct from_lua<Si::fast_variant<T...>>
 	{
@@ -113,17 +126,6 @@ namespace lua
 			auto const type = get_type(from);
 			bool is_correct_type = (from_lua<To>::lua_type == type);
 			return std::make_pair(variant(from_lua<To>()(*from.thread(), from.from_bottom())), is_correct_type);
-		}
-	};
-
-	template <>
-	struct from_lua<Si::memory_range>
-	{
-		Si::memory_range operator()(lua_State &L, int address) const
-		{
-			std::size_t length = 0;
-			char const *begin = lua_tolstring(&L, address, &length);
-			return Si::make_memory_range(begin, begin + length);
 		}
 	};
 

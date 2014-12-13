@@ -43,25 +43,19 @@ namespace
 			assert(m_socket);
 		}
 
-		void append(lua::any_local element)
+		void append(Si::fast_variant<lua_Integer, Si::memory_range> element)
 		{
-			switch (element.get_type())
-			{
-			case lua::type::number:
-				m_send_buffer.push_back(static_cast<char>(lua_tointeger(element.thread(), element.from_bottom())));
-				break;
-
-			case lua::type::string:
+			return Si::visit<void>(
+				element,
+				[this](lua_Integer c)
 				{
-					size_t length = 0;
-					char const *begin = lua_tolstring(element.thread(), element.from_bottom(), &length);
-					m_send_buffer.insert(m_send_buffer.end(), begin, begin + length);
-					break;
+					m_send_buffer.push_back(static_cast<char>(c));
+				},
+				[this](Si::memory_range str)
+				{
+					m_send_buffer.insert(m_send_buffer.end(), str.begin(), str.end());
 				}
-
-			default:
-				std::terminate(); //TODO
-			}
+			);
 		}
 
 		void flush(lua::current_thread thread)
