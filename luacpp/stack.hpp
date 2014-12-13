@@ -149,37 +149,37 @@ namespace lua
 			return register_function_with_existing_upvalues(function, upvalue_count);
 		}
 
-		type get_type(any_local const &local)
+		static type get_type(any_local const &local)
 		{
-			return static_cast<type>(lua_type(m_state, local.from_bottom()));
+			return static_cast<type>(lua_type(local.thread(), local.from_bottom()));
 		}
 
-		lua_Number to_number(any_local const &local)
+		static lua_Number to_number(any_local const &local)
 		{
-			return lua_tonumber(m_state, local.from_bottom());
+			return lua_tonumber(local.thread(), local.from_bottom());
 		}
 
-		lua_Integer to_integer(any_local const &local)
+		static lua_Integer to_integer(any_local const &local)
 		{
-			return lua_tointeger(m_state, local.from_bottom());
+			return lua_tointeger(local.thread(), local.from_bottom());
 		}
 
-		Si::noexcept_string to_string(any_local const &local)
+		static Si::noexcept_string to_string(any_local const &local)
 		{
-			return lua_tostring(m_state, local.from_bottom());
+			return lua_tostring(local.thread(), local.from_bottom());
 		}
 
-		bool to_boolean(any_local const &local)
+		static bool to_boolean(any_local const &local)
 		{
-			return lua_toboolean(m_state, local.from_bottom()) != 0;
+			return lua_toboolean(local.thread(), local.from_bottom()) != 0;
 		}
 
-		void *to_user_data(any_local const &local)
+		static void *to_user_data(any_local const &local)
 		{
-			return lua_touserdata(m_state, local.from_bottom());
+			return lua_touserdata(local.thread(), local.from_bottom());
 		}
 
-		boost::optional<lua_Number> get_number(any_local const &local)
+		static boost::optional<lua_Number> get_number(any_local const &local)
 		{
 			type const t = get_type(local);
 			if (t != type::number)
@@ -189,7 +189,7 @@ namespace lua
 			return to_number(local);
 		}
 
-		boost::optional<lua_Integer> get_integer(any_local const &local)
+		static boost::optional<lua_Integer> get_integer(any_local const &local)
 		{
 			type const t = get_type(local);
 			if (t != type::number)
@@ -199,7 +199,7 @@ namespace lua
 			return to_integer(local);
 		}
 
-		boost::optional<Si::noexcept_string> get_string(any_local const &local)
+		static boost::optional<Si::noexcept_string> get_string(any_local const &local)
 		{
 			type const t = get_type(local);
 			if (t != type::string)
@@ -209,7 +209,7 @@ namespace lua
 			return to_string(local);
 		}
 
-		boost::optional<bool> get_boolean(any_local const &local)
+		static boost::optional<bool> get_boolean(any_local const &local)
 		{
 			type const t = get_type(local);
 			if (t != type::boolean)
