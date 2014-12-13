@@ -101,7 +101,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_c_function)
 	lua_State &L = *state;
 	lua::stack s(L);
 	{
-		lua::stack_value func = s.register_function(return_3);
+		lua::stack_value func = lua::register_function(L, return_3);
 		lua::stack_array results = s.call(func, lua::no_arguments(), 1);
 		boost::optional<lua_Number> const result = get_number(at(results, 0));
 		BOOST_CHECK_EQUAL(boost::make_optional(3.0), result);
@@ -125,7 +125,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_c_closure)
 	lua::stack s(L);
 	{
 		std::array<lua_Number, 2> const upvalues{{1.0, 2.0}};
-		lua::stack_value func = s.register_function(return_upvalues_subtracted, Si::make_container_source(upvalues));
+		lua::stack_value func = lua::register_function(L, return_upvalues_subtracted, Si::make_container_source(upvalues));
 		lua::stack_array results = s.call(func, lua::no_arguments(), 1);
 		boost::optional<lua_Number> const result = get_number(at(results, 0));
 		BOOST_CHECK_EQUAL(boost::make_optional(-1.0), result);
@@ -323,7 +323,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 		auto obj = lua::create_user_data(*s.state(), 1);
 		{
 			auto meta = lua::create_table(*s.state());
-			set_element(meta, "method", s.register_function([](lua_State *L) -> int
+			set_element(meta, "method", lua::register_function(*s.state(), [](lua_State *L) -> int
 			{
 				lua_pushinteger(L, 234);
 				return 1;

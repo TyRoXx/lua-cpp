@@ -11,7 +11,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_yield)
 	{
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
-		lua::stack_value entry_point = coro_stack.register_function([](lua_State *L) -> int
+		lua::stack_value entry_point = lua::register_function(*s.state(), [](lua_State *L) -> int
 		{
 			return lua_yield(L, 0);
 		});
@@ -96,7 +96,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_finish)
 	{
 		lua::coroutine coro = lua::create_coroutine(lua::main_thread(*s.state()));
 		lua::stack coro_stack(coro.thread());
-		lua::stack_value entry_point = coro_stack.register_function([](lua_State *L) -> int
+		lua::stack_value entry_point = lua::register_function(*s.state(), [](lua_State *L) -> int
 		{
 			lua_pushinteger(L, 23);
 			return 1;

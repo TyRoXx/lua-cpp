@@ -115,40 +115,6 @@ namespace lua
 			return stack_array(*m_state, 1, variable<int>{result_count});
 		}
 
-		stack_value register_function(int (*function)(lua_State *L))
-		{
-			lua_pushcfunction(m_state, function);
-			return stack_value(*m_state, size(*m_state));
-		}
-
-		stack_value register_function_with_existing_upvalues(int (*function)(lua_State *L), int upvalue_count)
-		{
-			assert(size(*m_state) >= upvalue_count);
-			lua_pushcclosure(m_state, function, upvalue_count);
-			return stack_value(*m_state, size(*m_state));
-		}
-
-		template <class UpvalueSource>
-		stack_value register_function(int (*function)(lua_State *L), UpvalueSource &&values)
-		{
-#ifndef NDEBUG
-			int const initial_top = size(*m_state);
-#endif
-			int upvalue_count = 0;
-			for (;;)
-			{
-				auto value = Si::get(values);
-				if (!value)
-				{
-					break;
-				}
-				push(*m_state, *value);
-				++upvalue_count;
-				assert(size(*m_state) == (initial_top + upvalue_count));
-			}
-			return register_function_with_existing_upvalues(function, upvalue_count);
-		}
-
 	private:
 
 		lua_State *m_state;
@@ -218,6 +184,40 @@ namespace lua
 		push(*table.thread(), std::forward<Key>(key));
 		push(*table.thread(), std::forward<Element>(element));
 		lua_settable(table.thread(), table.from_bottom());
+	}
+
+	inline stack_value register_function(lua_State &stack, int (*function)(lua_State *L))
+	{
+		lua_pushcfunction(&stack, function);
+		return stack_value(stack, size(stack));
+	}
+
+	inline stack_value register_function_with_existing_upvalues(lua_State &stack, int (*function)(lua_State *L), int upvalue_count)
+	{
+		assert(size(stack) >= upvalue_count);
+		lua_pushcclosure(&stack, function, upvalue_count);
+		return stack_value(stack, size(stack));
+	}
+
+	template <class UpvalueSource>
+	stack_value register_function(lua_State &stack, int (*function)(lua_State *L), UpvalueSource &&values)
+	{
+#ifndef NDEBUG
+		int const initial_top = size(stack);
+#endif
+		int upvalue_count = 0;
+		for (;;)
+		{
+			auto value = Si::get(values);
+			if (!value)
+			{
+				break;
+			}
+			push(stack, *value);
+			++upvalue_count;
+			assert(size(stack) == (initial_top + upvalue_count));
+		}
+		return register_function_with_existing_upvalues(stack, function, upvalue_count);
 	}
 }
 

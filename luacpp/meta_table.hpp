@@ -32,7 +32,7 @@ namespace lua
 		lua::stack_value meta = create_table(*s.state());
 		set_element(meta, "__index", meta);
 		set_element(meta, "__metatable", "USERDATA");
-		set_element(meta, "__gc", s.register_function([](lua_State *L) -> int
+		set_element(meta, "__gc", lua::register_function(*s.state(), [](lua_State *L) -> int
 		{
 			T *obj = static_cast<T *>(lua_touserdata(L, -1));
 			assert(obj);

@@ -80,7 +80,7 @@ namespace lua
 				stack_value meta_table = create_table(*s.state());
 				//TODO: cache metatable
 				{
-					stack_value destructor = s.register_function(detail::delete_function<clean_function>);
+					stack_value destructor = register_function(*s.state(), detail::delete_function<clean_function>);
 					set_element(meta_table, "__gc", destructor);
 				}
 				set_meta_table(data, meta_table);
@@ -99,7 +99,8 @@ namespace lua
 			++upvalue_count;
 		}
 		data.release();
-		return s.register_function_with_existing_upvalues(
+		return register_function_with_existing_upvalues(
+			*s.state(),
 			detail::call_upvalue_function<clean_function>,
 			upvalue_count
 		);
