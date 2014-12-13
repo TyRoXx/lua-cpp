@@ -70,14 +70,14 @@ namespace lua
 	stack_value register_closure(stack &s, Function &&f, UpvalueSource &&upvalues)
 	{
 		typedef typename std::decay<Function>::type clean_function;
-		stack_value data = s.create_user_data(sizeof(f));
+		stack_value data = create_user_data(*s.state(), sizeof(f));
 		{
 			clean_function * const f_stored = static_cast<clean_function *>(to_user_data(data));
 			assert(f_stored);
 			new (f_stored) clean_function{std::forward<Function>(f)};
 			std::unique_ptr<clean_function, detail::placement_destructor> f_stored_handle(f_stored);
 			{
-				stack_value meta_table = s.create_table();
+				stack_value meta_table = create_table(*s.state());
 				//TODO: cache metatable
 				{
 					stack_value destructor = s.register_function(detail::delete_function<clean_function>);

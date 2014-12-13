@@ -10,7 +10,7 @@ namespace lua
 	template <class T, class Pushable, class ...Args>
 	stack_value emplace_object(stack &s, Pushable &&meta_table, Args &&...args)
 	{
-		stack_value obj = s.create_user_data(sizeof(T));
+		stack_value obj = create_user_data(*s.state(), sizeof(T));
 		T * const raw_obj = static_cast<T *>(to_user_data(obj));
 		assert(raw_obj);
 		new (raw_obj) T{std::forward<Args>(args)...};
@@ -29,7 +29,7 @@ namespace lua
 	template <class T>
 	lua::stack_value create_default_meta_table(lua::stack &s)
 	{
-		lua::stack_value meta = s.create_table();
+		lua::stack_value meta = create_table(*s.state());
 		s.set_element(meta, "__index", meta);
 		s.set_element(meta, "__metatable", "USERDATA");
 		s.set_element(meta, "__gc", s.register_function([](lua_State *L) -> int

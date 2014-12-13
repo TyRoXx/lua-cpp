@@ -149,19 +149,6 @@ namespace lua
 			return register_function_with_existing_upvalues(function, upvalue_count);
 		}
 
-		stack_value create_user_data(std::size_t data_size)
-		{
-			void *user_data = lua_newuserdata(m_state, data_size);
-			assert(data_size == 0 || user_data);
-			return stack_value(*m_state, size(*m_state));
-		}
-
-		stack_value create_table(int array_size = 0, int non_array_size = 0)
-		{
-			lua_createtable(m_state, array_size, non_array_size);
-			return stack_value(*m_state, size(*m_state));
-		}
-
 		template <class Key, class Element>
 		void set_element(any_local const &table, Key &&key, Element &&element)
 		{
@@ -217,6 +204,19 @@ namespace lua
 	inline stack_value push_nil(lua_State &stack) BOOST_NOEXCEPT
 	{
 		lua_pushnil(&stack);
+		return stack_value(stack, size(stack));
+	}
+
+	inline stack_value create_user_data(lua_State &stack, std::size_t data_size)
+	{
+		void *user_data = lua_newuserdata(&stack, data_size);
+		assert(data_size == 0 || user_data);
+		return stack_value(stack, size(stack));
+	}
+
+	inline stack_value create_table(lua_State &stack, int array_size = 0, int non_array_size = 0)
+	{
+		lua_createtable(&stack, array_size, non_array_size);
 		return stack_value(stack, size(stack));
 	}
 }
