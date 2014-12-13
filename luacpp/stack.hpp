@@ -159,13 +159,6 @@ namespace lua
 			lua_settable(m_state, table.from_bottom());
 		}
 
-		template <class Metatable>
-		void set_meta_table(any_local const &object, Metatable &&meta)
-		{
-			push(*m_state, std::forward<Metatable>(meta));
-			lua_setmetatable(m_state, object.from_bottom());
-		}
-
 	private:
 
 		lua_State *m_state;
@@ -218,6 +211,13 @@ namespace lua
 	{
 		lua_createtable(&stack, array_size, non_array_size);
 		return stack_value(stack, size(stack));
+	}
+
+	template <class Metatable>
+	void set_meta_table(any_local const &object, Metatable &&meta)
+	{
+		push(*object.thread(), std::forward<Metatable>(meta));
+		lua_setmetatable(object.thread(), object.from_bottom());
 	}
 }
 

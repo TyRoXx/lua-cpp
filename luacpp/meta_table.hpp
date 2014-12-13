@@ -16,7 +16,7 @@ namespace lua
 		new (raw_obj) T{std::forward<Args>(args)...};
 		try
 		{
-			s.set_meta_table(obj, std::forward<Pushable>(meta_table));
+			set_meta_table(obj, std::forward<Pushable>(meta_table));
 		}
 		catch (...)
 		{

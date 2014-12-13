@@ -83,7 +83,7 @@ namespace lua
 					stack_value destructor = s.register_function(detail::delete_function<clean_function>);
 					s.set_element(meta_table, "__gc", destructor);
 				}
-				s.set_meta_table(data, meta_table);
+				set_meta_table(data, meta_table);
 			}
 			f_stored_handle.release();
 		}

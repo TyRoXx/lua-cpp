@@ -329,7 +329,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_set_meta_table)
 				return 1;
 			}));
 			s.set_element(meta, "__index", meta);
-			s.set_meta_table(obj, meta);
+			set_meta_table(obj, meta);
 		}
 		lua::set_global(*s.state(), "obj", obj);
 		boost::optional<lua_Integer> result = get_integer(s.call(lua::load_buffer(*s.state(), Si::make_c_str_range("return obj:method()"), "test").value(), lua::no_arguments(), std::integral_constant<int, 1>()));
