@@ -56,12 +56,12 @@ namespace lua
 				assert(status == 0);
 			}
 #endif
-			int const top_before = checked_top();
+			int const top_before = size(*m_state);
 			int const argument_count = push_arguments(function, arguments);
-			assert(checked_top() == top_before + argument_count + 1);
+			assert(size(*m_state) == top_before + argument_count + 1);
 			int const nresults = expected_result_count ? *expected_result_count : LUA_MULTRET;
 			int const rc = lua_pcall(m_state, argument_count, nresults, 0);
-			int const top_after_call = checked_top();
+			int const top_after_call = size(*m_state);
 			assert(top_after_call >= top_before);
 			if (rc == 0)
 			{
@@ -111,28 +111,28 @@ namespace lua
 				return yield();
 			}
 			handle_pcall_result(*m_state, rc);
-			int const result_count = checked_top();
+			int const result_count = size(*m_state);
 			return stack_array(*m_state, 1, variable<int>{result_count});
 		}
 
 		stack_value register_function(int (*function)(lua_State *L))
 		{
 			lua_pushcfunction(m_state, function);
-			return stack_value(*m_state, checked_top());
+			return stack_value(*m_state, size(*m_state));
 		}
 
 		stack_value register_function_with_existing_upvalues(int (*function)(lua_State *L), int upvalue_count)
 		{
-			assert(checked_top() >= upvalue_count);
+			assert(size(*m_state) >= upvalue_count);
 			lua_pushcclosure(m_state, function, upvalue_count);
-			return stack_value(*m_state, checked_top());
+			return stack_value(*m_state, size(*m_state));
 		}
 
 		template <class UpvalueSource>
 		stack_value register_function(int (*function)(lua_State *L), UpvalueSource &&values)
 		{
 #ifndef NDEBUG
-			int const initial_top = checked_top();
+			int const initial_top = size(*m_state);
 #endif
 			int upvalue_count = 0;
 			for (;;)
@@ -144,28 +144,28 @@ namespace lua
 				}
 				push(*m_state, *value);
 				++upvalue_count;
-				assert(checked_top() == (initial_top + upvalue_count));
+				assert(size(*m_state) == (initial_top + upvalue_count));
 			}
 			return register_function_with_existing_upvalues(function, upvalue_count);
 		}
 
-		stack_value create_user_data(std::size_t size)
+		stack_value create_user_data(std::size_t data_size)
 		{
-			void *user_data = lua_newuserdata(m_state, size);
-			assert(size == 0 || user_data);
-			return stack_value(*m_state, checked_top());
+			void *user_data = lua_newuserdata(m_state, data_size);
+			assert(data_size == 0 || user_data);
+			return stack_value(*m_state, size(*m_state));
 		}
 
 		stack_value create_table(int array_size = 0, int non_array_size = 0)
 		{
 			lua_createtable(m_state, array_size, non_array_size);
-			return stack_value(*m_state, checked_top());
+			return stack_value(*m_state, size(*m_state));
 		}
 
 		stack_value push_nil()
 		{
 			lua_pushnil(m_state);
-			return stack_value(*m_state, checked_top());
+			return stack_value(*m_state, size(*m_state));
 		}
 
 		template <class Key, class Element>
@@ -185,27 +185,15 @@ namespace lua
 			lua_setmetatable(m_state, object.from_bottom());
 		}
 
-		int size()
-		{
-			return checked_top();
-		}
-
 	private:
 
 		lua_State *m_state;
-
-		int checked_top() const BOOST_NOEXCEPT
-		{
-			int top = lua_gettop(m_state);
-			assert(top >= 0);
-			return top;
-		}
 
 		template <class Pushable, class ArgumentSource>
 		int push_arguments(Pushable &&function, ArgumentSource &&arguments)
 		{
 			push(*m_state, std::forward<Pushable>(function));
-			int const top_before = checked_top();
+			int const top_before = size(*m_state);
 			int argument_count = 0;
 			for (;;)
 			{
@@ -217,7 +205,7 @@ namespace lua
 				push(*m_state, std::move(*argument));
 				++argument_count;
 			}
-			assert(checked_top() == (top_before + argument_count));
+			assert(size(*m_state) == (top_before + argument_count));
 			return argument_count;
 		}
 	};

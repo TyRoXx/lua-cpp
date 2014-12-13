@@ -127,6 +127,13 @@ namespace lua
 		}
 		return to_boolean(local);
 	}
+
+	inline int size(lua_State &stack) BOOST_NOEXCEPT
+	{
+		int top = lua_gettop(&stack);
+		assert(top >= 0); //a sanity check against memory corruption
+		return top;
+	}
 }
 
 #endif

@@ -118,15 +118,15 @@ namespace
 	inline lua::stack_value create_tcp_client_meta_table(lua::stack &s)
 	{
 		lua::stack_value meta = lua::create_default_meta_table<tcp_client>(s);
-		assert(s.size() == 1);
+		assert(lua::size(*s.state()) == 1);
 		assert(get_type(meta) == lua::type::table);
 
 		add_method(s, meta, "append", &tcp_client::append);
-		assert(s.size() == 1);
+		assert(lua::size(*s.state()) == 1);
 		assert(get_type(meta) == lua::type::table);
 
 		lua::add_method(s, meta, "flush", &tcp_client::flush);
-		assert(s.size() == 1);
+		assert(lua::size(*s.state()) == 1);
 		assert(get_type(meta) == lua::type::table);
 		return meta;
 	}
@@ -180,7 +180,7 @@ namespace
 
 			lua::coroutine child_coro = std::move(*Si::exchange(m_suspended, Si::none));
 			lua::stack child_stack(child_coro.thread());
-			assert(child_stack.size() == 0);
+			assert(lua::size(child_coro.thread()) == 0);
 
 			if (m_cached_client_meta_table.empty())
 			{
