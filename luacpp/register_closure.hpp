@@ -72,7 +72,7 @@ namespace lua
 		typedef typename std::decay<Function>::type clean_function;
 		stack_value data = s.create_user_data(sizeof(f));
 		{
-			clean_function * const f_stored = static_cast<clean_function *>(s.to_user_data(data));
+			clean_function * const f_stored = static_cast<clean_function *>(to_user_data(data));
 			assert(f_stored);
 			new (f_stored) clean_function{std::forward<Function>(f)};
 			std::unique_ptr<clean_function, detail::placement_destructor> f_stored_handle(f_stored);

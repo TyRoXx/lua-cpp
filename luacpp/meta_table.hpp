@@ -11,7 +11,7 @@ namespace lua
 	stack_value emplace_object(stack &s, Pushable &&meta_table, Args &&...args)
 	{
 		stack_value obj = s.create_user_data(sizeof(T));
-		T * const raw_obj = static_cast<T *>(s.to_user_data(obj));
+		T * const raw_obj = static_cast<T *>(to_user_data(obj));
 		assert(raw_obj);
 		new (raw_obj) T{std::forward<Args>(args)...};
 		try

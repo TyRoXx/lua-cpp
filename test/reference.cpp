@@ -15,7 +15,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_reference)
 	BOOST_REQUIRE(!ref.empty());
 	{
 		lua::stack_array results = s.call(ref, lua::no_arguments(), 1);
-		boost::optional<lua_Number> const result = s.get_number(at(results, 0));
+		boost::optional<lua_Number> const result = get_number(at(results, 0));
 		BOOST_CHECK_EQUAL(boost::make_optional(3.0), result);
 	}
 	BOOST_CHECK_EQUAL(0, lua_gettop(&L));

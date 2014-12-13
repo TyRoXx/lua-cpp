@@ -75,13 +75,13 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_lua_calls_yielding_method)
 		BOOST_CHECK_EQUAL(0, lua_status(&coro.thread()));
 
 		lua::replace(entry_point_2, entry_point);
-		BOOST_REQUIRE_EQUAL(lua::type::function, coro_stack.get_type(entry_point_2));
+		BOOST_REQUIRE_EQUAL(lua::type::function, get_type(entry_point_2));
 
 		lua::stack_value meta = lua::create_default_meta_table<yielder>(coro_stack);
 		lua::add_method(coro_stack, meta, "yield", &yielder::yield);
 		lua::stack_value object = lua::emplace_object<yielder>(coro_stack, meta, lua::main_thread(*s.state()));
 		lua::replace(object, meta);
-		BOOST_REQUIRE_EQUAL(lua::type::user_data, coro_stack.get_type(object));
+		BOOST_REQUIRE_EQUAL(lua::type::user_data, get_type(object));
 
 		entry_point_2.release();
 		object.release();
@@ -105,6 +105,6 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_coroutine_finish)
 		lua::stack_array * const return_values = Si::try_get_ptr<lua::stack_array>(result);
 		BOOST_REQUIRE(return_values);
 		BOOST_REQUIRE_EQUAL(1, return_values->size());
-		BOOST_CHECK_EQUAL(static_cast<lua_Integer>(23), coro_stack.get_integer(*return_values));
+		BOOST_CHECK_EQUAL(static_cast<lua_Integer>(23), get_integer(*return_values));
 	});
 }

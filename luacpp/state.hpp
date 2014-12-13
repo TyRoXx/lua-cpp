@@ -57,6 +57,76 @@ namespace lua
 			out << '\n';
 		}
 	}
+
+	inline type get_type(any_local const &local)
+	{
+		return static_cast<type>(lua_type(local.thread(), local.from_bottom()));
+	}
+
+	inline lua_Number to_number(any_local const &local)
+	{
+		return lua_tonumber(local.thread(), local.from_bottom());
+	}
+
+	inline lua_Integer to_integer(any_local const &local)
+	{
+		return lua_tointeger(local.thread(), local.from_bottom());
+	}
+
+	inline Si::noexcept_string to_string(any_local const &local)
+	{
+		return lua_tostring(local.thread(), local.from_bottom());
+	}
+
+	inline bool to_boolean(any_local const &local)
+	{
+		return lua_toboolean(local.thread(), local.from_bottom()) != 0;
+	}
+
+	inline void *to_user_data(any_local const &local)
+	{
+		return lua_touserdata(local.thread(), local.from_bottom());
+	}
+
+	inline boost::optional<lua_Number> get_number(any_local const &local)
+	{
+		type const t = get_type(local);
+		if (t != type::number)
+		{
+			return boost::none;
+		}
+		return to_number(local);
+	}
+
+	inline boost::optional<lua_Integer> get_integer(any_local const &local)
+	{
+		type const t = get_type(local);
+		if (t != type::number)
+		{
+			return boost::none;
+		}
+		return to_integer(local);
+	}
+
+	inline boost::optional<Si::noexcept_string> get_string(any_local const &local)
+	{
+		type const t = get_type(local);
+		if (t != type::string)
+		{
+			return boost::none;
+		}
+		return to_string(local);
+	}
+
+	inline boost::optional<bool> get_boolean(any_local const &local)
+	{
+		type const t = get_type(local);
+		if (t != type::boolean)
+		{
+			return boost::none;
+		}
+		return to_boolean(local);
+	}
 }
 
 #endif

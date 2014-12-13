@@ -119,15 +119,15 @@ namespace
 	{
 		lua::stack_value meta = lua::create_default_meta_table<tcp_client>(s);
 		assert(s.size() == 1);
-		assert(s.get_type(meta) == lua::type::table);
+		assert(get_type(meta) == lua::type::table);
 
 		add_method(s, meta, "append", &tcp_client::append);
 		assert(s.size() == 1);
-		assert(s.get_type(meta) == lua::type::table);
+		assert(get_type(meta) == lua::type::table);
 
 		lua::add_method(s, meta, "flush", &tcp_client::flush);
 		assert(s.size() == 1);
-		assert(s.get_type(meta) == lua::type::table);
+		assert(get_type(meta) == lua::type::table);
 		return meta;
 	}
 
@@ -404,7 +404,7 @@ int main(int argc, char **argv)
 	lua::result first_level = lua::load_file(runner.thread(), parsed_options->program);
 	if (first_level.is_error())
 	{
-		std::cerr << first_level.code() << ": " << runner_stack.to_string(first_level.get_error()) << '\n';
+		std::cerr << first_level.code() << ": " << to_string(first_level.get_error()) << '\n';
 		return 1;
 	}
 

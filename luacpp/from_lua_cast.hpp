@@ -110,7 +110,7 @@ namespace lua
 		template <class To>
 		static std::pair<variant, bool> try_convert(any_local from)
 		{
-			auto const type = stack(*from.thread()).get_type(from);
+			auto const type = get_type(from);
 			bool is_correct_type = (from_lua<To>::lua_type == type);
 			return std::make_pair(variant(from_lua<To>()(*from.thread(), from.from_bottom())), is_correct_type);
 		}
