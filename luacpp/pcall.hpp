@@ -29,11 +29,20 @@ namespace lua
 	{
 		using lua::push;
 		push(stack, std::forward<Function>(function));
-		Si::nothing dummy[] =
+
+		//Use array initialization to unpack varadic parameters and push the
+		//arguments in first-to-last order.
+		Si::nothing everything_pushed[] =
 		{
-			[&]() { push(stack, arguments); return Si::nothing(); }()...
+			[&]()
+			{
+				push(stack, arguments);
+				return Si::nothing();
+			}()...
 		};
-		pcall(stack, static_cast<int>(sizeof...(Arguments)), 1);
+		boost::ignore_unused_variable_warning(everything_pushed);
+
+		pcall(stack, static_cast<int>(sizeof...(Arguments)), 0);
 	}
 }
 
