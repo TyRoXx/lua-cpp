@@ -51,15 +51,30 @@ namespace lua
 				typedef async_operation<observable_type> operation_type;
 
 				stack s(*thread.L);
+#ifndef NDEBUG
+				int initial_stack_size = size(*thread.L);
+#endif
 				auto meta = create_default_meta_table<operation_type>(s);
+				assert(initial_stack_size + 1 == size(*thread.L));
+
 				auto object = emplace_object<operation_type>(s, meta, main, std::move(*coro), std::move(observable));
+				assert(initial_stack_size + 2 == size(*thread.L));
+
 				replace(object, meta);
+				assert(initial_stack_size + 1 == size(*thread.L));
 
 				auto &operation = assume_type<operation_type>(object);
+				assert(initial_stack_size + 1 == size(*thread.L));
+
 				operation.keep_this_alive = create_reference(main, object);
+				assert(initial_stack_size + 1 == size(*thread.L));
+
 				operation.observed.async_get_one(static_cast<Si::observer<element_type> &>(operation));
+				assert(initial_stack_size + 1 == size(*thread.L));
 
 				object.pop();
+				assert(initial_stack_size == size(*thread.L));
+
 				operation.suspended.suspend();
 			});
 		}

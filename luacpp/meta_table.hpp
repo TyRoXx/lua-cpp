@@ -4,9 +4,24 @@
 #include "luacpp/register_any_function.hpp"
 #include "luacpp/stack.hpp"
 #include "luacpp/stack_value.hpp"
+#include <boost/mpl/or.hpp>
 
 namespace lua
 {
+	namespace detail
+	{
+		template <class StackValue>
+		inline void replace_if(stack_value &replacement, StackValue &replaced, boost::mpl::bool_<true>)
+		{
+			replace(replacement, replaced);
+		}
+
+		template <class StackValue>
+		inline void replace_if(stack_value &, StackValue &&, boost::mpl::bool_<false>)
+		{
+		}
+	}
+
 	template <class T, class Pushable, class ...Args>
 	stack_value emplace_object(stack &s, Pushable &&meta_table, Args &&...args)
 	{
@@ -23,6 +38,11 @@ namespace lua
 			raw_obj->~T();
 			throw;
 		}
+		detail::replace_if(
+			obj,
+			meta_table,
+			boost::mpl::or_<std::is_same<Pushable, stack_value>, std::is_same<Pushable, stack_value &&>>()
+		);
 		return obj;
 	}
 

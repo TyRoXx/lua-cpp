@@ -13,6 +13,10 @@ namespace lua
 	{
 		typedef Element element_type;
 
+		observable_into_lua()
+		{
+		}
+
 		explicit observable_into_lua(lua_State &stack, reference observable)
 			: m_state(std::make_shared<async_state>(stack, std::move(observable)))
 		{
@@ -23,6 +27,7 @@ namespace lua
 			assert(m_state);
 			assert(!m_state->m_observer);
 			m_state->m_observer = &observer;
+			int const initial_stack_size = size(*m_state->m_stack);
 			auto this_ = to_local(*m_state->m_stack, m_state->m_observable);
 			auto method = get_element(this_, "async_get_one");
 			lua_insert(m_state->m_stack, -2);
@@ -48,7 +53,9 @@ namespace lua
 			callback.release();
 			this_.release();
 			method.release();
+			assert(initial_stack_size + 3 == lua_gettop(m_state->m_stack));
 			pcall(*m_state->m_stack, 2, boost::none);
+			lua_settop(m_state->m_stack, initial_stack_size);
 		}
 
 	private:

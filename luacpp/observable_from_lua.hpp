@@ -5,6 +5,7 @@
 #include <silicium/source/generator_source.hpp>
 #include "luacpp/reference.hpp"
 #include "luacpp/meta_table.hpp"
+#include "luacpp/pcall.hpp"
 
 namespace lua
 {
@@ -40,16 +41,10 @@ namespace lua
 			stack s(*m_main_thread.get());
 			auto callback = std::move(m_callback);
 			assert(m_callback.empty());
-			s.call(
-				callback,
-				Si::make_oneshot_generator_source([&element]()
-			{
-				return std::move(element);
-			}),
-				0);
+			variadic_pcall(*s.state(), std::move(callback), std::move(element));
 		}
 
-			virtual void ended() SILICIUM_OVERRIDE
+		virtual void ended() SILICIUM_OVERRIDE
 		{
 			assert(!m_callback.empty());
 			lua::stack s(*m_main_thread.get());

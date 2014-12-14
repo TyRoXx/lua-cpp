@@ -13,6 +13,7 @@ return function (require)
 	local http = require("http", "1.0")
 	local gc = require("gc", "1.0")
 	local time = require("time", "1.0")
+	local async = require("async", "1.0")
 	local visitor_count = 0
 	local clients = tcp.create_acceptor(8080)
 	local current_client_count = 0
@@ -36,7 +37,12 @@ return function (require)
 				"<li>GC allocated bytes: " .. tostring(gc.get_allocated_bytes()) ..
 				"<li>Current clients: " .. tostring(current_client_count)
 			)
-			time.sleep(0.01)
+			
+			time.sleep(0.02)
+			
+			local timer = time.create_timer(async.constant(0.02))
+			async.await_one(timer)
+			
 			sender:flush()
 			current_client_count = current_client_count - 1
 		end))

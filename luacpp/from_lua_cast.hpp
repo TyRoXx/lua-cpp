@@ -95,6 +95,15 @@ namespace lua
 		}
 	};
 
+	template <>
+	struct from_lua<any_local>
+	{
+		any_local operator()(lua_State &L, int address) const
+		{
+			return any_local(L, address);
+		}
+	};
+	
 	template <class ...T>
 	struct from_lua<Si::fast_variant<T...>>
 	{

@@ -67,17 +67,6 @@ namespace lua
 			}
 		};
 
-		template <>
-		struct argument_converter<any_local>
-		{
-			static BOOST_CONSTEXPR_OR_CONST bool consumes_stack = true;
-
-			any_local operator()(current_thread const &env, int address) const
-			{
-				return any_local(*env.L, address);
-			}
-		};
-
 		template <class ...Arguments>
 		struct argument_count_on_stack;
 

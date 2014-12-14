@@ -353,9 +353,42 @@ namespace
 							),
 						[](Si::asio::timer_elapsed)
 						{
-							return lua::nil();
+							return "timer elapsed";
 						})
 					);
+				});
+			});
+			module.assert_top();
+			return module;
+		}
+		else if (name == "async" && version == "1.0")
+		{
+			lua::stack_value module = lua::create_table(*stack.state());
+			set_element(
+				module,
+				"await_one",
+				[main_thread, &stack, &io](lua_State &)
+			{
+				return lua::register_async_function(main_thread, stack, [main_thread](lua::any_local const &observable, lua_State &stack)
+				{
+					return lua::observable_into_lua<lua::any_local>(stack, lua::create_reference(main_thread, observable));
+				});
+			});
+			set_element(
+				module,
+				"constant",
+				[main_thread, &stack](lua_State &)
+			{
+				return lua::register_any_function(stack, [main_thread](lua::any_local const &value, lua_State &stack)
+				{
+					auto bound_value = Si::to_shared(lua::create_reference(main_thread, value));
+					return lua::create_observable(
+						stack,
+						main_thread,
+						Si::make_generator_observable([bound_value]() -> lua::reference const &
+					{
+						return *bound_value;
+					}));
 				});
 			});
 			module.assert_top();

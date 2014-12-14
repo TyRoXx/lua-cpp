@@ -23,6 +23,18 @@ namespace lua
 		int rc = lua_pcall(&L, arguments, expected_results ? *expected_results : LUA_MULTRET, 0);
 		handle_pcall_result(L, rc);
 	}
+
+	template <class Function, class ...Arguments>
+	void variadic_pcall(lua_State &stack, Function &&function, Arguments &&...arguments)
+	{
+		using lua::push;
+		push(stack, std::forward<Function>(function));
+		Si::nothing dummy[] =
+		{
+			[&]() { push(stack, arguments); return Si::nothing(); }()...
+		};
+		pcall(stack, static_cast<int>(sizeof...(Arguments)), 1);
+	}
 }
 
 #endif
