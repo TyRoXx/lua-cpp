@@ -241,7 +241,7 @@ namespace
 		Si::noexcept_string const &name,
 		Si::noexcept_string const &version)
 	{
-		if (name == "tcp")
+		if (name == "tcp" && version == "1.0")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
 			set_element(
@@ -264,7 +264,7 @@ namespace
 			module.assert_top();
 			return module;
 		}
-		else if (name == "http")
+		else if (name == "http" && version == "1.0")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
 			set_element(
@@ -292,7 +292,7 @@ namespace
 			module.assert_top();
 			return module;
 		}
-		else if (name == "gc")
+		else if (name == "gc" && version == "1.0")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
 			set_element(
@@ -310,7 +310,7 @@ namespace
 			module.assert_top();
 			return module;
 		}
-		else if (name == "time")
+		else if (name == "time" && version == "1.0")
 		{
 			lua::stack_value module = lua::create_table(*stack.state());
 			set_element(
