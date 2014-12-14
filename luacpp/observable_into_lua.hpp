@@ -54,8 +54,8 @@ namespace lua
 			this_.release();
 			method.release();
 			assert(initial_stack_size + 3 == lua_gettop(m_state->m_stack));
-			pcall(*m_state->m_stack, 2, boost::none);
-			lua_settop(m_state->m_stack, initial_stack_size);
+			pcall(*m_state->m_stack, 2, 0);
+			assert(initial_stack_size == lua_gettop(m_state->m_stack));
 		}
 
 	private:

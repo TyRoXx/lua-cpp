@@ -103,6 +103,7 @@ namespace lua
 		SILICIUM_DELETED_FUNCTION(result &operator = (result const &))
 	};
 
+	SILICIUM_USE_RESULT
 	inline result load_buffer(lua_State &stack, Si::memory_range code, char const *name)
 	{
 		int const rc = luaL_loadbuffer(&stack, code.begin(), code.size(), name);
@@ -110,6 +111,7 @@ namespace lua
 		return result(rc, std::move(value));
 	}
 
+	SILICIUM_USE_RESULT
 	inline result load_file(lua_State &stack, boost::filesystem::path const &file)
 	{
 		int const rc = luaL_loadfile(&stack, to_utf8(file).c_str());

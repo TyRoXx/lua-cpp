@@ -18,10 +18,14 @@ namespace lua
 		boost::throw_exception(lua_exception(rc, std::move(message)));
 	}
 
-	inline void pcall(lua_State &L, int arguments, boost::optional<int> expected_results)
+	SILICIUM_USE_RESULT
+	inline stack_array pcall(lua_State &L, int arguments, boost::optional<int> expected_results)
 	{
+		int stack_before = lua_gettop(&L);
 		int rc = lua_pcall(&L, arguments, expected_results ? *expected_results : LUA_MULTRET, 0);
 		handle_pcall_result(L, rc);
+		int result_count = lua_gettop(&L) - stack_before - arguments;
+		return stack_array(L, size(L) - result_count + 1);
 	}
 
 	template <class Function, class ...Arguments>
