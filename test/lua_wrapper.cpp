@@ -216,7 +216,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_register_closure_with_converted_arguments_all_t
 			BOOST_CHECK_EQUAL(-2.0, lua::from_lua_cast<lua_Number>(localc));
 			BOOST_CHECK_EQUAL(&s, u);
 			BOOST_CHECK_EQUAL(&s, uc);
-			BOOST_CHECK_EQUAL(Si::fast_variant<lua_Integer>(42L), v1);
+			BOOST_CHECK_EQUAL(Si::fast_variant<lua_Integer>(static_cast<lua_Integer>(42)), v1);
 			BOOST_CHECK_EQUAL((Si::fast_variant<Si::noexcept_string, char const *>(Si::noexcept_string("text"))), v2);
 			BOOST_CHECK_EQUAL((Si::fast_variant<lua_Number, bool, void *>(true)), v3);
 			return "it works";
