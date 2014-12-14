@@ -47,6 +47,10 @@ namespace lua
 		int delete_function(lua_State *L) BOOST_NOEXCEPT
 		{
 			Function * const function = static_cast<Function *>(lua_touserdata(L, -1));
+#ifdef _MSC_VER
+			//workaround for VC++ 2013 bug
+			boost::ignore_unused_variable_warning(function);
+#endif
 			assert(function);
 			function->~Function();
 			return 0;

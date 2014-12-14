@@ -55,6 +55,10 @@ namespace lua
 		set_element(meta, "__gc", lua::register_function(*s.state(), [](lua_State *L) -> int
 		{
 			T *obj = static_cast<T *>(lua_touserdata(L, -1));
+#ifdef _MSC_VER
+			//workaround for VC++ 2013 bug
+			boost::ignore_unused_variable_warning(obj);
+#endif
 			assert(obj);
 			obj->~T();
 			return 0;

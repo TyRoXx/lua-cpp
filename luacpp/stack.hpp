@@ -13,21 +13,28 @@ namespace lua
 	struct top_checker : boost::noncopyable
 	{
 		explicit top_checker(lua_State &lua)
+#ifndef NDEBUG
 			: m_lua(&lua)
 			, m_top_on_entry(lua_gettop(&lua))
+#endif
 		{
+			boost::ignore_unused_variable_warning(lua);
 		}
 
 		~top_checker()
 		{
+#ifndef NDEBUG
 			int const top_on_exit = lua_gettop(m_lua);
+#endif
 			assert(top_on_exit == m_top_on_entry);
 		}
 
 	private:
 
+#ifndef NDEBUG
 		lua_State *m_lua;
 		int m_top_on_entry;
+#endif
 	};
 
 	struct stack
@@ -123,7 +130,9 @@ namespace lua
 		int push_arguments(Pushable &&function, ArgumentSource &&arguments)
 		{
 			push(*m_state, std::forward<Pushable>(function));
+#ifndef NDEBUG
 			int const top_before = size(*m_state);
+#endif
 			int argument_count = 0;
 			for (;;)
 			{
@@ -158,7 +167,10 @@ namespace lua
 
 	inline stack_value create_user_data(lua_State &stack, std::size_t data_size)
 	{
-		void *user_data = lua_newuserdata(&stack, data_size);
+#ifndef NDEBUG
+		void *user_data =
+#endif
+			lua_newuserdata(&stack, data_size);
 		assert(data_size == 0 || user_data);
 		return stack_value(stack, size(stack));
 	}
