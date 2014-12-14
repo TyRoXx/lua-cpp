@@ -3,6 +3,7 @@
 
 #include "luacpp/push.hpp"
 #include "luacpp/stack_value.hpp"
+#include "luacpp/stack.hpp"
 #include <silicium/config.hpp>
 
 namespace lua
@@ -115,6 +116,12 @@ namespace lua
 		push(*thread.get(), value);
 		int key = luaL_ref(thread.get(), LUA_REGISTRYINDEX);
 		return reference(thread, key);
+	}
+
+	inline stack_value to_local(lua_State &stack, reference const &ref)
+	{
+		ref.push(stack);
+		return stack_value(stack, size(stack));
 	}
 }
 

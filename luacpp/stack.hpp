@@ -186,6 +186,14 @@ namespace lua
 		lua_settable(table.thread(), table.from_bottom());
 	}
 
+	template <class Key>
+	stack_value get_element(any_local const &table, Key &&key)
+	{
+		push(*table.thread(), std::forward<Key>(key));
+		lua_gettable(table.thread(), table.from_bottom());
+		return stack_value(*table.thread(), size(*table.thread()));
+	}
+
 	inline stack_value register_function(lua_State &stack, int (*function)(lua_State *L))
 	{
 		lua_pushcfunction(&stack, function);
