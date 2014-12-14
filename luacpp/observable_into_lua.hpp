@@ -23,8 +23,9 @@ namespace lua
 			assert(m_state);
 			assert(!m_state->m_observer);
 			m_state->m_observer = &observer;
-			auto method = get_element(to_local(*m_state->m_stack, m_state->m_observable), "async_get_one");
 			auto this_ = to_local(*m_state->m_stack, m_state->m_observable);
+			auto method = get_element(this_, "async_get_one");
+			lua_insert(m_state->m_stack, -2);
 			lua::stack s(*m_state->m_stack);
 			std::weak_ptr<async_state> state = m_state;
 			auto callback = register_any_function(s, [state](any_local const &element)
@@ -47,7 +48,7 @@ namespace lua
 			callback.release();
 			this_.release();
 			method.release();
-			pcall(*m_state->m_stack, 1, boost::none);
+			pcall(*m_state->m_stack, 2, boost::none);
 		}
 
 	private:

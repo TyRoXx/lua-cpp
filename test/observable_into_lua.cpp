@@ -4,6 +4,7 @@
 #include "luacpp/load.hpp"
 #include <silicium/observable/for_each.hpp>
 #include <silicium/observable/ref.hpp>
+#include <silicium/observable/consume.hpp>
 
 BOOST_AUTO_TEST_CASE(lua_wrapper_observable_into_lua)
 {
@@ -24,14 +25,14 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_observable_into_lua)
 		program.pop();
 
 		bool got_one = false;
-		auto all = Si::for_each(Si::ref(cpp_observable), [&got_one](Si::noexcept_string const &element)
+		auto consumer = Si::consume<Si::noexcept_string>([&got_one](Si::noexcept_string const &element)
 		{
 			BOOST_REQUIRE(!got_one);
 			got_one = true;
 			BOOST_CHECK_EQUAL("hallo", element);
 		});
 		BOOST_CHECK(!got_one);
-		all.start();
+		cpp_observable.async_get_one(consumer);
 		BOOST_CHECK(got_one);
 	});
 }
