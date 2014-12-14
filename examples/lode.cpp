@@ -113,87 +113,65 @@ namespace
 
 	inline lua::stack_value create_tcp_client_meta_table(lua::stack &s)
 	{
+#ifndef NDEBUG
+		int initial_stack_size = lua::size(*s.state());
+#endif
 		lua::stack_value meta = lua::create_default_meta_table<tcp_client>(s);
-		assert(lua::size(*s.state()) == 1);
+		assert(lua::size(*s.state()) == initial_stack_size + 1);
 		assert(get_type(meta) == lua::type::table);
 
 		add_method(s, meta, "append", &tcp_client::append);
-		assert(lua::size(*s.state()) == 1);
+		assert(lua::size(*s.state()) == initial_stack_size + 1);
 		assert(get_type(meta) == lua::type::table);
 
 		lua::add_method(s, meta, "flush", &tcp_client::flush);
-		assert(lua::size(*s.state()) == 1);
+		assert(lua::size(*s.state()) == initial_stack_size + 1);
 		assert(get_type(meta) == lua::type::table);
 		return meta;
 	}
 
-	struct tcp_acceptor : private Si::observer<Si::asio::tcp_acceptor_result>
+	struct tcp_acceptor
 	{
-		explicit tcp_acceptor(
-			lua::main_thread main_thread,
-			boost::asio::io_service &io,
-			boost::asio::ip::tcp::endpoint endpoint)
-			: m_main_thread(main_thread)
-			, m_acceptor(io, endpoint)
-			, m_incoming_clients(m_acceptor)
+		typedef Si::asio::tcp_acceptor::element_type element_type;
+
+		tcp_acceptor()
 		{
 		}
 
-		void sync_get(lua::current_thread thread)
+		tcp_acceptor(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
+			: m_acceptor(Si::make_unique<boost::asio::ip::tcp::acceptor>(io, endpoint))
+			, m_observable(*m_acceptor)
 		{
-			Si::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
-			assert(coro && "you cannot call this function from the Lua main thread");
-			m_waiting = true;
-			m_incoming_clients.async_get_one(static_cast<Si::observer<Si::asio::tcp_acceptor_result> &>(*this));
-			if (m_waiting)
-			{
-				m_suspended = std::move(*coro);
-				return m_suspended->suspend();
-			}
 		}
+
+		template <class Observer>
+		void async_get_one(Observer &observer)
+		{
+			return m_observable.async_get_one(observer);
+		}
+
+#if SILICIUM_COMPILER_GENERATES_MOVES
+		tcp_acceptor(tcp_acceptor &&other) = default;
+		tcp_acceptor &operator = (tcp_acceptor &&other) = default;
+#else
+		tcp_acceptor(tcp_acceptor &&other)
+			: m_acceptor(std::move(other.m_acceptor))
+			, m_observable(std::move(other.m_observable))
+		{
+		}
+
+		tcp_acceptor &operator = (tcp_acceptor &&other)
+		{
+			m_acceptor = std::move(other.m_acceptor);
+			m_observable = std::move(other.m_observable);
+			return *this;
+		}
+#endif
 
 	private:
 
-		lua::main_thread m_main_thread;
-		boost::asio::ip::tcp::acceptor m_acceptor;
-		Si::asio::tcp_acceptor m_incoming_clients;
-		bool m_waiting;
-		Si::optional<lua::coroutine> m_suspended;
-		lua::reference m_cached_client_meta_table;
-
-		virtual void got_element(Si::asio::tcp_acceptor_result incoming) SILICIUM_OVERRIDE
-		{
-			assert(m_waiting);
-			assert(m_suspended);
-			m_waiting = false;
-
-			assert(lua_status(&m_suspended->thread()) == LUA_YIELD);
-
-			if (incoming.is_error())
-			{
-				return Si::exchange(m_suspended, Si::none)->resume(0);
-			}
-
-			lua::coroutine child_coro = std::move(*Si::exchange(m_suspended, Si::none));
-			lua::stack child_stack(child_coro.thread());
-			assert(lua::size(child_coro.thread()) == 0);
-
-			if (m_cached_client_meta_table.empty())
-			{
-				m_cached_client_meta_table = lua::create_reference(m_main_thread, create_tcp_client_meta_table(child_stack));
-			}
-			lua::stack_value client = lua::emplace_object<tcp_client>(child_stack, m_cached_client_meta_table, m_main_thread, incoming.get());
-
-			assert(lua_gettop(child_stack.state()) == 1);
-			client.release();
-			child_coro.resume(1);
-			assert(lua_gettop(child_stack.state()) == 0);
-		}
-
-		virtual void ended() SILICIUM_OVERRIDE
-		{
-			SILICIUM_UNREACHABLE();
-		}
+		std::unique_ptr<boost::asio::ip::tcp::acceptor> m_acceptor;
+		Si::asio::tcp_acceptor m_observable;
 	};
 
 	struct http_response_generator
@@ -253,12 +231,24 @@ namespace
 				{
 					boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address_v4::any(), static_cast<boost::uint16_t>(port));
 					lua::stack s(L);
-					return lua::emplace_object<tcp_acceptor>(s, [&s](lua_State &)
-					{
-						lua::stack_value meta = lua::create_default_meta_table<tcp_acceptor>(s);
-						add_method(s, meta, "sync_get", &tcp_acceptor::sync_get);
-						return meta;
-					}, main_thread, io, endpoint);
+					return lua::create_observable(
+						L,
+						main_thread,
+						Si::transform(
+							tcp_acceptor(io, endpoint),
+							[main_thread](Si::asio::tcp_acceptor_result incoming) -> lua::reference
+							{
+								if (incoming.is_error())
+								{
+									return lua::create_reference(main_thread, lua::nil());
+								}
+								lua::stack s(*main_thread.get());
+								lua::stack_value client_meta = create_tcp_client_meta_table(s);
+								lua::stack_value client = lua::emplace_object<tcp_client>(s, client_meta, main_thread, incoming.get());
+								return lua::create_reference(main_thread, std::move(client));
+							}
+						)
+					);
 				});
 			});
 			module.assert_top();

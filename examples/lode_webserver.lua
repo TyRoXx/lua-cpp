@@ -1,12 +1,3 @@
-local sync_for_each = function (observable, handler)
-	while true do
-		local element = observable:sync_get()
-		if element == nil then
-			break
-		end
-		handler(element)
-	end
-end
 
 return function (require)
 	local tcp = require("tcp", "1.0")
@@ -14,6 +5,18 @@ return function (require)
 	local gc = require("gc", "1.0")
 	local time = require("time", "1.0")
 	local async = require("async", "1.0")
+
+	local await = async.await_one
+	local sync_for_each = function (observable, handler)
+		while true do
+			local element = await(observable)
+			if element == nil then
+				break
+			end
+			handler(element)
+		end
+	end
+
 	local visitor_count = 0
 	local clients = tcp.create_acceptor(8080)
 	local current_client_count = 0
@@ -37,12 +40,12 @@ return function (require)
 				"<li>GC allocated bytes: " .. tostring(gc.get_allocated_bytes()) ..
 				"<li>Current clients: " .. tostring(current_client_count)
 			)
-			
+
 			time.sleep(0.02)
-			
+
 			local timer = time.create_timer(async.constant(0.02))
-			async.await_one(timer)
-			
+			await(timer)
+
 			sender:flush()
 			current_client_count = current_client_count - 1
 		end))
