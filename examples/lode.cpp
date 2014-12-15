@@ -337,7 +337,7 @@ namespace
 							Si::asio::make_timer(
 								io,
 								Si::transform(
-									lua::observable_into_lua<lua_Integer>(L, lua::create_reference(main_thread, delays)),
+									lua::observable_into_lua<lua_Number>(L, lua::create_reference(main_thread, delays)),
 									lua_duration_to_cpp
 								)
 							),

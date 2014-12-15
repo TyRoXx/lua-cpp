@@ -28,23 +28,28 @@ namespace lua
 		return stack_array(L, size(L) - result_count + 1);
 	}
 
+	namespace detail
+	{
+		inline void push_all(lua_State &)
+		{
+		}
+
+		template <class Head, class ...Tail>
+		void push_all(lua_State &stack, Head &&head, Tail &&...tail)
+		{
+			using lua::push;
+			push(stack, std::forward<Head>(head));
+			push_all(stack, std::forward<Tail>(tail)...);
+		}
+	}
+
 	template <class Function, class ...Arguments>
 	void variadic_pcall(lua_State &stack, Function &&function, Arguments &&...arguments)
 	{
 		using lua::push;
 		push(stack, std::forward<Function>(function));
 
-		//Use array initialization to unpack varadic parameters and push the
-		//arguments in first-to-last order.
-		Si::nothing everything_pushed[] =
-		{
-			[&]()
-			{
-				push(stack, arguments);
-				return Si::nothing();
-			}()...
-		};
-		boost::ignore_unused_variable_warning(everything_pushed);
+		detail::push_all(stack, std::forward<Arguments>(arguments)...);
 
 		pcall(stack, static_cast<int>(sizeof...(Arguments)), 0);
 	}
