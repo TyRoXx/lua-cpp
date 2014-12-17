@@ -30,17 +30,7 @@ namespace
 		explicit tcp_client(lua::main_thread main_thread, std::shared_ptr<boost::asio::ip::tcp::socket> socket)
 			: m_main_thread(main_thread)
 			, m_socket(std::move(socket))
-			, m_sender(Si::asio::make_writing_observable(
-				*m_socket,
-#if _MSC_VER
-				Si::erase_shared
-#else
-				Si::erase_unique
-#endif
-				(Si::make_generator_observable([this]() -> Si::memory_range
-			{
-				return Si::make_memory_range(m_send_buffer);
-			}))))
+			, m_sender(Si::asio::make_writing_observable(*m_socket))
 		{
 			assert(m_socket);
 		}
@@ -64,7 +54,8 @@ namespace
 		{
 			Si::optional<lua::coroutine> coro = lua::pin_coroutine(m_main_thread, thread);
 			assert(coro && "you cannot call this function from the Lua main thread");
-			m_sender.async_get_one(*this);
+			m_sender.set_buffer(Si::make_memory_range(m_send_buffer));
+			m_sender.async_get_one(Si::observe_by_ref(static_cast<Si::observer<boost::system::error_code> &>(*this)));
 			m_coro = std::move(*coro);
 			m_coro.suspend();
 		}
@@ -74,15 +65,7 @@ namespace
 		lua::main_thread m_main_thread;
 		std::shared_ptr<boost::asio::ip::tcp::socket> m_socket;
 		Si::noexcept_string m_send_buffer;
-
-		typedef
-#ifdef _MSC_VER
-			Si::shared_observable
-#else
-			Si::unique_observable
-#endif
-			<Si::memory_range> buffers;
-		Si::asio::writing_observable<boost::asio::ip::tcp::socket, buffers> m_sender;
+		Si::asio::writing_observable<boost::asio::ip::tcp::socket> m_sender;
 		lua::coroutine m_coro;
 
 		virtual void got_element(boost::system::error_code value) SILICIUM_OVERRIDE
@@ -132,7 +115,7 @@ namespace
 
 	struct tcp_acceptor
 	{
-		typedef Si::asio::tcp_acceptor::element_type element_type;
+		typedef Si::asio::tcp_acceptor_result element_type;
 
 		tcp_acceptor()
 		{
@@ -140,7 +123,7 @@ namespace
 
 		tcp_acceptor(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
 			: m_acceptor(Si::make_unique<boost::asio::ip::tcp::acceptor>(io, endpoint))
-			, m_observable(*m_acceptor)
+			, m_observable(m_acceptor.get())
 		{
 		}
 
@@ -171,7 +154,7 @@ namespace
 	private:
 
 		std::unique_ptr<boost::asio::ip::tcp::acceptor> m_acceptor;
-		Si::asio::tcp_acceptor m_observable;
+		Si::asio::tcp_acceptor<boost::asio::ip::tcp::acceptor *> m_observable;
 	};
 
 	struct http_response_generator
@@ -211,7 +194,7 @@ namespace
 		std::chrono::microseconds const duration(static_cast<std::int64_t>(duration_seconds * 1000000.0));
 		return duration;
 	}
-
+	
 	lua::stack_value require_package(
 		lua::main_thread main_thread,
 		lua::stack &stack,
@@ -311,8 +294,10 @@ namespace
 				return lua::register_async_function(main_thread, stack, [&io](lua_Number duration_seconds)
 				{
 					std::chrono::microseconds const duration = lua_duration_to_cpp(duration_seconds);
+					auto timer = Si::asio::make_timer(io);
+					timer.expires_from_now(duration);
 					return Si::transform(
-						Si::asio::make_timer(io, Si::make_constant_observable(duration)),
+						std::move(timer),
 #ifdef _MSC_VER
 						std::function<lua::nil(Si::asio::timer_elapsed)> //workaround for lambda-to-funcptr issues
 #endif
@@ -320,32 +305,6 @@ namespace
 					{
 						return lua::nil();
 					}));
-				});
-			});
-			set_element(
-				module,
-				"create_timer",
-				[main_thread, &stack, &io](lua_State &)
-			{
-				return lua::register_any_function(stack, [main_thread, &io](lua::any_local const &delays, lua_State &L)
-				{
-					lua::stack s(L);
-					return create_observable(
-						L,
-						main_thread,
-						Si::transform(
-							Si::asio::make_timer(
-								io,
-								Si::transform(
-									lua::observable_into_lua<lua_Number>(L, lua::create_reference(main_thread, delays)),
-									lua_duration_to_cpp
-								)
-							),
-						[](Si::asio::timer_elapsed)
-						{
-							return "timer elapsed";
-						})
-					);
 				});
 			});
 			module.assert_top();

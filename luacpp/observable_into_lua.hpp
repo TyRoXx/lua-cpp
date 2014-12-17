@@ -22,11 +22,11 @@ namespace lua
 		{
 		}
 
-		void async_get_one(Si::observer<element_type> &observer)
+		void async_get_one(Si::ptr_observer<Si::observer<element_type>> observer)
 		{
 			assert(m_state);
 			assert(!m_state->m_observer);
-			m_state->m_observer = &observer;
+			m_state->m_observer = observer.get();
 			int const initial_stack_size = size(*m_state->m_stack);
 			auto this_ = to_local(*m_state->m_stack, m_state->m_observable);
 			auto method = get_element(this_, "async_get_one");

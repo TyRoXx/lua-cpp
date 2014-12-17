@@ -43,9 +43,6 @@ return function (require)
 
 			time.sleep(0.02)
 
-			local timer = time.create_timer(async.constant(0.02))
-			await(timer)
-
 			sender:flush()
 			current_client_count = current_client_count - 1
 		end))

@@ -25,7 +25,7 @@ namespace lua
 				return false;
 			}
 			m_callback = create_reference(m_main_thread, callback);
-			m_observable.async_get_one(static_cast<Si::observer<typename Observable::element_type> &>(*this));
+			m_observable.async_get_one(Si::observe_by_ref(static_cast<Si::observer<typename Observable::element_type> &>(*this)));
 			return true;
 		}
 

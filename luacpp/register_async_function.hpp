@@ -69,7 +69,7 @@ namespace lua
 				operation.keep_this_alive = create_reference(main, object);
 				assert(initial_stack_size + 1 == size(*thread.L));
 
-				operation.observed.async_get_one(static_cast<Si::observer<element_type> &>(operation));
+				operation.observed.async_get_one(Si::observe_by_ref(static_cast<Si::observer<element_type> &>(operation)));
 				assert(initial_stack_size + 1 == size(*thread.L));
 
 				object.pop();

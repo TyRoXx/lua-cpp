@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_CASE(lua_wrapper_observable_into_lua)
 			BOOST_CHECK_EQUAL("hallo", element);
 		});
 		BOOST_CHECK(!got_one);
-		cpp_observable.async_get_one(consumer);
+		cpp_observable.async_get_one(Si::observe_by_ref(consumer));
 		BOOST_CHECK(got_one);
 	});
 }
