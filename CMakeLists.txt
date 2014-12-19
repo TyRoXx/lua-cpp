@@ -46,7 +46,7 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 set(SILICIUM_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/silicium" CACHE PATH "")
-find_package(Silicium)
+find_package(Silicium REQUIRED)
 include_directories(${SILICIUM_INCLUDE_DIR})
 
 find_package(Lua51 REQUIRED)
