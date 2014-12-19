@@ -113,50 +113,6 @@ namespace
 		return meta;
 	}
 
-	struct tcp_acceptor
-	{
-		typedef Si::asio::tcp_acceptor_result element_type;
-
-		tcp_acceptor()
-		{
-		}
-
-		tcp_acceptor(boost::asio::io_service &io, boost::asio::ip::tcp::endpoint endpoint)
-			: m_acceptor(Si::make_unique<boost::asio::ip::tcp::acceptor>(io, endpoint))
-			, m_observable(m_acceptor.get())
-		{
-		}
-
-		template <class Observer>
-		void async_get_one(Observer &observer)
-		{
-			return m_observable.async_get_one(observer);
-		}
-
-#if SILICIUM_COMPILER_GENERATES_MOVES
-		tcp_acceptor(tcp_acceptor &&other) = default;
-		tcp_acceptor &operator = (tcp_acceptor &&other) = default;
-#else
-		tcp_acceptor(tcp_acceptor &&other)
-			: m_acceptor(std::move(other.m_acceptor))
-			, m_observable(std::move(other.m_observable))
-		{
-		}
-
-		tcp_acceptor &operator = (tcp_acceptor &&other)
-		{
-			m_acceptor = std::move(other.m_acceptor);
-			m_observable = std::move(other.m_observable);
-			return *this;
-		}
-#endif
-
-	private:
-
-		std::unique_ptr<boost::asio::ip::tcp::acceptor> m_acceptor;
-		Si::asio::tcp_acceptor<boost::asio::ip::tcp::acceptor *> m_observable;
-	};
-
 	struct http_response_generator
 	{
 		explicit http_response_generator(lua::reference sink)
@@ -218,7 +174,7 @@ namespace
 						L,
 						main_thread,
 						Si::transform(
-							tcp_acceptor(io, endpoint),
+							Si::asio::make_tcp_acceptor(boost::asio::ip::tcp::acceptor(io, endpoint)),
 							[main_thread](Si::asio::tcp_acceptor_result incoming) -> lua::reference
 							{
 								if (incoming.is_error())
