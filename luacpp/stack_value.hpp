@@ -95,6 +95,12 @@ namespace lua
 			assert(lua_gettop(thread()) == from_bottom());
 		}
 
+		any_local element_address(int zero_based_offset) const BOOST_NOEXCEPT
+		{
+			assert(zero_based_offset < size());
+			return any_local(*thread(), from_bottom() + zero_based_offset);
+		}
+
 		template <class Pushable>
 		basic_stack_value<std::integral_constant<int, 1>> operator[](Pushable &&index)
 		{
