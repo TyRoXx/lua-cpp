@@ -111,6 +111,16 @@ namespace lua
 			return basic_stack_value<std::integral_constant<int, 1>>(*thread(), lua_gettop(thread()));
 		}
 
+		template <class PushableKey, class PushableValue>
+		void set(PushableKey &&key, PushableValue &&value) const
+		{
+			using lua::push;
+			assert(thread());
+			push(*thread(), std::forward<PushableKey>(key));
+			push(*thread(), std::forward<PushableValue>(value));
+			lua_settable(thread(), from_bottom());
+		}
+
 	private:
 
 #ifndef NDEBUG
